@@ -3,6 +3,21 @@
 ## Project Overview
 
 `sysdoc` is a Rust-based system documentation tool currently in early development.
+`sysdoc` attempts to provide tooling and templates to assist in writing Systems Engineering documents using Markdown, DrawIO, and CSV.
+The intention is to support a workflows using VS Code, Git, and Pull Request review process to create Systems Engineering Documents faster and with less friction than working in Word or Visio.
+
+### Key features
+
+- Initialize templates based on DID standards such as `DI-IPSC-81435B - Software Design Description (SDD)`
+- Aggregate multiple Markdown files in a nested folder structure with auto nested heading depth
+- Support `.drawio.svg` and `.png` image files
+- Support CSV files for tables
+- Generate `.docx` files containing the Markdown, image, and table content
+
+### Future features
+
+- ID markers in Markdown comments to support automatic traceability table generation
+- GUI for interactively exploring and searching multiple systems engineering document repositories using traceability and Git history
 
 ## Project Structure
 
