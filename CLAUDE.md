@@ -67,7 +67,22 @@ cargo clippy
 
 # Format code
 cargo fmt
+
+# Check licenses and security advisories (requires cargo-deny)
+cargo deny check
 ```
+
+### Development Tools
+
+**cargo-deny** - License and security checker (required)
+
+Install with:
+
+```bash
+cargo install cargo-deny
+```
+
+This project uses `cargo-deny` to enforce permissive open source licenses and check for security vulnerabilities. The configuration in `deny.toml` allows only permissive licenses (MIT, Apache-2.0, BSD, etc.) and denies copyleft licenses (GPL, LGPL, AGPL).
 
 ## Architecture
 
