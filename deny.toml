@@ -29,6 +29,9 @@ allow = [
     "CC0-1.0",
 ]
 
+# Don't warn about unused licenses in the allow list
+unused-allowed-license = "allow"
+
 [bans]
 # Deny multiple versions of the same crate
 multiple-versions = "warn"
