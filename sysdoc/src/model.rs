@@ -1,5 +1,6 @@
 //! Document model for representing parsed markdown documents
 
+use pulldown_cmark::{Event, Parser, Tag};
 use std::path::PathBuf;
 
 /// Represents the entire document being built
@@ -33,9 +34,62 @@ pub struct Section {
     pub depth: usize,
     /// Raw markdown content
     pub content: String,
+    /// Parsed markdown events
+    pub events: Vec<Event<'static>>,
+    /// Image references found in the markdown
+    pub images: Vec<ImageReference>,
+    /// Table references found in the markdown (CSV files)
+    pub tables: Vec<PathBuf>,
     /// Path to source file (for error reporting)
     #[allow(dead_code)]
     pub source_path: PathBuf,
+}
+
+impl Section {
+    /// Parse the markdown content and extract references
+    pub fn parse_content(&mut self) {
+        let parser = Parser::new(&self.content);
+        let mut events = Vec::new();
+        let mut images = Vec::new();
+        let mut tables = Vec::new();
+
+        for event in parser {
+            match &event {
+                Event::Start(Tag::Image { dest_url, .. }) => {
+                    let url = dest_url.to_string();
+                    images.push(ImageReference {
+                        url: url.clone(),
+                        alt_text: String::new(), // Will be filled when we see the text
+                    });
+                }
+                Event::Start(Tag::Link { dest_url, .. }) => {
+                    let url = dest_url.to_string();
+                    // Check if it's a CSV table reference
+                    if url.ends_with(".csv") {
+                        tables.push(PathBuf::from(url));
+                    }
+                }
+                _ => {}
+            }
+            // Convert to 'static lifetime by cloning strings
+            events.push(event.into_static());
+        }
+
+        self.events = events;
+        self.images = images;
+        self.tables = tables;
+    }
+}
+
+/// Reference to an image in the markdown
+#[derive(Debug, Clone)]
+pub struct ImageReference {
+    /// URL or path to the image
+    #[allow(dead_code)]
+    pub url: String,
+    /// Alt text for the image
+    #[allow(dead_code)]
+    pub alt_text: String,
 }
 
 /// Section number representation

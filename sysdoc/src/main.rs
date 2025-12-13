@@ -4,10 +4,7 @@
 //! using Markdown, DrawIO, and CSV files.
 
 #![deny(unsafe_code)]
-#![cfg_attr(
-    all(not(debug_assertions), not(test)),
-    deny(clippy::all, missing_docs, unused_crate_dependencies)
-)]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(clippy::all, missing_docs))]
 
 mod cli;
 mod model;
@@ -71,17 +68,32 @@ fn main() {
                         println!("\nDiscovered {} sections:", document.sections.len());
                         for section in &document.sections {
                             println!(
-                                "  {} - {} (depth: {}, {} chars)",
+                                "  {} - {} (depth: {}, {} chars, {} events, {} images, {} tables)",
                                 section.number.to_string(),
                                 section.title,
                                 section.depth,
-                                section.content.len()
+                                section.content.len(),
+                                section.events.len(),
+                                section.images.len(),
+                                section.tables.len()
                             );
                         }
                     }
 
                     println!("\nDocument parsed successfully!");
                     println!("Sections: {}", document.sections.len());
+
+                    // Summary of resources
+                    let total_images: usize =
+                        document.sections.iter().map(|s| s.images.len()).sum();
+                    let total_tables: usize =
+                        document.sections.iter().map(|s| s.tables.len()).sum();
+                    if total_images > 0 || total_tables > 0 {
+                        println!(
+                            "Resources: {} images, {} tables",
+                            total_images, total_tables
+                        );
+                    }
 
                     // TODO: Implement rendering to DOCX or Markdown
                     if watch {

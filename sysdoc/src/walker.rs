@@ -55,8 +55,15 @@ pub fn walk_document(root: &Path) -> Result<Document, WalkerError> {
         }
 
         // Parse the section from the file
-        let section = parse_section(path, root)?;
-        sections.push(section);
+        // Skip files that don't follow the section numbering convention (e.g., README.md)
+        match parse_section(path, root) {
+            Ok(section) => sections.push(section),
+            Err(WalkerError::InvalidFilename(_)) | Err(WalkerError::MissingSectionNumber(_)) => {
+                // Skip files that don't match the section format
+                continue;
+            }
+            Err(e) => return Err(e),
+        }
     }
 
     // Sort sections by their section number
@@ -86,13 +93,21 @@ fn parse_section(path: &Path, _root: &Path) -> Result<Section, WalkerError> {
 
     let depth = number.depth();
 
-    Ok(Section {
+    let mut section = Section {
         number,
         title: title.to_string(),
         depth,
         content,
+        events: Vec::new(),
+        images: Vec::new(),
+        tables: Vec::new(),
         source_path: path.to_path_buf(),
-    })
+    };
+
+    // Parse the markdown content to extract events and references
+    section.parse_content();
+
+    Ok(section)
 }
 
 /// Parse filename into section number and title
