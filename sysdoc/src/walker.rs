@@ -4,7 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::model::{Document, Section, SectionNumber};
+use crate::document_model::DocumentModel;
+use crate::document_section::{DocumentSection, SectionNumber};
 
 /// Errors that can occur during document walking
 #[derive(Debug)]
@@ -40,8 +41,8 @@ impl std::fmt::Display for WalkerError {
 impl std::error::Error for WalkerError {}
 
 /// Walk a document directory and build the document model
-pub fn walk_document(root: &Path) -> Result<Document, WalkerError> {
-    let mut document = Document::new(root.to_path_buf());
+pub fn walk_document(root: &Path) -> Result<DocumentModel, WalkerError> {
+    let mut document = DocumentModel::new(root.to_path_buf());
     let mut sections = Vec::new();
 
     // Walk the directory tree
@@ -74,7 +75,7 @@ pub fn walk_document(root: &Path) -> Result<Document, WalkerError> {
 }
 
 /// Parse a single markdown file into a Section
-fn parse_section(path: &Path, _root: &Path) -> Result<Section, WalkerError> {
+fn parse_section(path: &Path, _root: &Path) -> Result<DocumentSection, WalkerError> {
     // Read file content
     let content = fs::read_to_string(path)?;
 
@@ -93,7 +94,7 @@ fn parse_section(path: &Path, _root: &Path) -> Result<Section, WalkerError> {
 
     let depth = number.depth();
 
-    let mut section = Section {
+    let mut section = DocumentSection {
         number,
         title: title.to_string(),
         depth,

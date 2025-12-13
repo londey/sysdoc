@@ -4,10 +4,12 @@
 //! using Markdown, DrawIO, and CSV files.
 
 #![deny(unsafe_code)]
-#![cfg_attr(all(not(debug_assertions), not(test)), deny(clippy::all, missing_docs))]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(clippy::all))]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(missing_docs))]
 
 mod cli;
-mod model;
+mod document_model;
+mod document_section;
 mod walker;
 
 use clap::Parser;

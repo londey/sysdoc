@@ -1,32 +1,12 @@
-//! Document model for representing parsed markdown documents
+//! Section model for individual document sections
 
 use pulldown_cmark::{Event, Parser, Tag};
 use std::fmt;
 use std::path::PathBuf;
 
-/// Represents the entire document being built
-#[derive(Debug)]
-pub struct Document {
-    /// Root directory of the document source
-    #[allow(dead_code)]
-    pub root: PathBuf,
-    /// Ordered sections of the document
-    pub sections: Vec<Section>,
-}
-
-impl Document {
-    /// Create a new empty document
-    pub fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            sections: Vec::new(),
-        }
-    }
-}
-
 /// A section in the document (corresponds to a markdown file)
 #[derive(Debug)]
-pub struct Section {
+pub struct DocumentSection {
     /// Section number parsed from filename (e.g., [1, 1] from "01.01_purpose.md")
     pub number: SectionNumber,
     /// Section title extracted from filename (e.g., "Purpose" from "01.01_purpose.md")
@@ -46,7 +26,7 @@ pub struct Section {
     pub source_path: PathBuf,
 }
 
-impl Section {
+impl DocumentSection {
     /// Parse the markdown content and extract references
     pub fn parse_content(&mut self) {
         let parser = Parser::new(&self.content);
