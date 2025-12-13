@@ -6,3 +6,6 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 clap = { workspace = true }
+pulldown-cmark = { workspace = true }
+walkdir = { workspace = true }
+csv = { workspace = true }

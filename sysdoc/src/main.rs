@@ -10,9 +10,12 @@
 )]
 
 mod cli;
+mod model;
+mod walker;
 
 use clap::Parser;
 use cli::{Cli, Commands, OutputFormat};
+use walker::walk_document;
 
 /// Main entry point for the sysdoc CLI application
 fn main() {
@@ -43,34 +46,53 @@ fn main() {
             format,
             watch,
             verbose,
-            no_toc,
+            no_toc: _,
             no_images,
         } => {
-            println!("Building documentation...");
-            println!("Input: {}", input.display());
-            println!("Output: {}", output.display());
-            match format {
-                OutputFormat::Docx => println!("Format: DOCX"),
-                OutputFormat::Markdown => {
-                    println!("Format: Markdown with images folder");
-                    if no_images {
-                        println!("Warning: --no-images has no effect in Markdown format");
+            if verbose {
+                println!("Building documentation...");
+                println!("Input: {}", input.display());
+                println!("Output: {}", output.display());
+                match format {
+                    OutputFormat::Docx => println!("Format: DOCX"),
+                    OutputFormat::Markdown => {
+                        println!("Format: Markdown with images folder");
+                        if no_images {
+                            println!("Warning: --no-images has no effect in Markdown format");
+                        }
                     }
                 }
             }
-            if watch {
-                println!("Watch mode enabled");
+
+            // Walk the document directory and build the model
+            match walk_document(&input) {
+                Ok(document) => {
+                    if verbose {
+                        println!("\nDiscovered {} sections:", document.sections.len());
+                        for section in &document.sections {
+                            println!(
+                                "  {} - {} (depth: {}, {} chars)",
+                                section.number.to_string(),
+                                section.title,
+                                section.depth,
+                                section.content.len()
+                            );
+                        }
+                    }
+
+                    println!("\nDocument parsed successfully!");
+                    println!("Sections: {}", document.sections.len());
+
+                    // TODO: Implement rendering to DOCX or Markdown
+                    if watch {
+                        println!("Watch mode not yet implemented");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error building document: {}", e);
+                    std::process::exit(1);
+                }
             }
-            if verbose {
-                println!("Verbose mode enabled");
-            }
-            if no_toc {
-                println!("Skipping table of contents");
-            }
-            if no_images && matches!(format, OutputFormat::Docx) {
-                println!("Skipping image embedding");
-            }
-            // TODO: Implement build logic
         }
 
         Commands::Validate {
