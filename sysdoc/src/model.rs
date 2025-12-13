@@ -1,6 +1,7 @@
 //! Document model for representing parsed markdown documents
 
 use pulldown_cmark::{Event, Parser, Tag};
+use std::fmt;
 use std::path::PathBuf;
 
 /// Represents the entire document being built
@@ -112,14 +113,17 @@ impl SectionNumber {
     pub fn depth(&self) -> usize {
         self.parts.len().saturating_sub(1)
     }
+}
 
-    /// Format as string (e.g., "1.2.3")
-    pub fn to_string(&self) -> String {
-        self.parts
+impl fmt::Display for SectionNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = self
+            .parts
             .iter()
             .map(|n| n.to_string())
             .collect::<Vec<_>>()
-            .join(".")
+            .join(".");
+        write!(f, "{}", s)
     }
 }
 

@@ -69,7 +69,7 @@ fn main() {
                         for section in &document.sections {
                             println!(
                                 "  {} - {} (depth: {}, {} chars, {} events, {} images, {} tables)",
-                                section.number.to_string(),
+                                section.number,
                                 section.title,
                                 section.depth,
                                 section.content.len(),

@@ -46,7 +46,7 @@ pub fn walk_document(root: &Path) -> Result<Document, WalkerError> {
 
     // Walk the directory tree
     for entry in WalkDir::new(root).follow_links(false).sort_by_file_name() {
-        let entry = entry.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let entry = entry.map_err(std::io::Error::other)?;
         let path = entry.path();
 
         // Only process markdown files
@@ -127,8 +127,7 @@ fn parse_filename<'a>(filename: &'a str, path: &Path) -> Result<(&'a str, String
 
     // Convert slug to title (replace hyphens/underscores with spaces, capitalize)
     let title = title_slug
-        .replace('-', " ")
-        .replace('_', " ")
+        .replace(['-', '_'], " ")
         .split_whitespace()
         .map(|word| {
             let mut chars = word.chars();
