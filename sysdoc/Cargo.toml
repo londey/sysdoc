@@ -9,3 +9,8 @@ clap = { workspace = true }
 pulldown-cmark = { workspace = true }
 walkdir = { workspace = true }
 csv = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+pulldown-cmark = { workspace = true, features = ["default"] }

@@ -8,6 +8,7 @@
 #![cfg_attr(all(not(debug_assertions), not(test)), deny(missing_docs))]
 
 mod cli;
+mod document_config;
 mod document_model;
 mod document_section;
 mod walker;
