@@ -56,12 +56,12 @@ Run `sysdoc build` to generate the final document.
 
 ## Structure
 
-- `src/01-scope/` - Identification, system overview, document overview
-- `src/02-referenced_documents/` - Referenced documents
-- `src/03-requirements/` - System requirements (capabilities, interfaces, data, etc.)
-- `src/04-qualification_provisions/` - Qualification methods
-- `src/05-requirements_traceability/` - Requirements traceability
-- `src/06-notes/` - General information, acronyms, glossary
+- `src/01_scope/` - Identification, system overview, document overview
+- `src/02_referenced_documents/` - Referenced documents
+- `src/03_requirements/` - System requirements (capabilities, interfaces, data, etc.)
+- `src/04_qualification_provisions/` - Qualification methods
+- `src/05_requirements_traceability/` - Requirements traceability
+- `src/06_notes/` - General information, acronyms, glossary
 - `src/appendices/` - Appendices
 """
 
@@ -69,13 +69,13 @@ Run `sysdoc build` to generate the final document.
 # SECTION 1: SCOPE
 # =============================================================================
 
-[files."src/01-scope/01.00_scope.md"]
+[files."src/01_scope/01.00_scope.md"]
 heading = "Scope"
 guidance = """
 1. Scope. This section shall be divided into the following paragraphs.
 """
 
-[files."src/01-scope/01.01_identification.md"]
+[files."src/01_scope/01.01_identification.md"]
 heading = "Identification"
 guidance = """
 1.1 Identification. This paragraph shall contain a full identification of the system and the
@@ -83,7 +83,7 @@ software to which this document applies, including, as applicable, identificatio
 title(s), abbreviation(s), version number(s), and release number(s).
 """
 
-[files."src/01-scope/01.02_system_overview.md"]
+[files."src/01_scope/01.02_system_overview.md"]
 heading = "System overview"
 guidance = """
 1.2 System overview. This paragraph shall briefly state the purpose of the system and the
@@ -93,7 +93,7 @@ the project sponsor, acquirer, user, developer, and support agencies; identify c
 operating sites; and list other relevant documents.
 """
 
-[files."src/01-scope/01.03_document_overview.md"]
+[files."src/01_scope/01.03_document_overview.md"]
 heading = "Document overview"
 guidance = """
 1.3 Document overview. This paragraph shall summarize the purpose and contents of
@@ -104,7 +104,7 @@ this document and shall describe any security or privacy considerations associat
 # SECTION 2: REFERENCED DOCUMENTS
 # =============================================================================
 
-[files."src/02-referenced_documents/02.00_referenced_documents.md"]
+[files."src/02_referenced_documents/02.00_referenced_documents.md"]
 heading = "Referenced documents"
 guidance = """
 2. Referenced documents. This section shall list the number, title, revision, and date of
@@ -116,7 +116,7 @@ documents not available through normal Government stocking activities.
 # SECTION 3: REQUIREMENTS
 # =============================================================================
 
-[files."src/03-requirements/03.00_requirements.md"]
+[files."src/03_requirements/03.00_requirements.md"]
 heading = "Requirements"
 guidance = """
 3. Requirements. This section shall be divided into the following paragraphs to specify
@@ -132,7 +132,7 @@ are no requirements in a given paragraph, the paragraph shall so state. If a giv
 into more than one paragraph, it may be stated once and referenced from the other paragraphs.
 """
 
-[files."src/03-requirements/03.01_required_states_and_modes.md"]
+[files."src/03_requirements/03.01_required_states_and_modes.md"]
 heading = "Required states and modes"
 guidance = """
 3.1 Required states and modes. If the system is required to operate in more than one state
@@ -148,7 +148,7 @@ table or other method in this paragraph, in an appendix referenced from this par
 annotation of the requirements in the paragraphs where they appear.
 """
 
-[files."src/03-requirements/03.02_system_capability_requirements.md"]
+[files."src/03_requirements/03.02_system_capability_requirements.md"]
 heading = "System capability requirements"
 guidance = """
 3.2 System capability requirements. This paragraph shall be divided into subparagraphs
@@ -170,7 +170,7 @@ Paragraph 3.3.x of this DID provides a list of topics to be considered when spec
 requirements regarding inputs the system must accept and outputs it must produce.
 """
 
-[files."src/03-requirements/03.03_system_external_interface_requirements.md"]
+[files."src/03_requirements/03.03_system_external_interface_requirements.md"]
 heading = "System external interface requirements"
 guidance = """
 3.3 System external interface requirements. This paragraph shall be divided into
@@ -258,7 +258,7 @@ g. Other required characteristics, such as physical compatibility of the interfa
 (dimensions, tolerances, loads, plug compatibility, etc.), voltages, etc.
 """
 
-[files."src/03-requirements/03.04_system_internal_interface_requirements.md"]
+[files."src/03_requirements/03.04_system_internal_interface_requirements.md"]
 heading = "System internal interface requirements"
 guidance = """
 3.4 System internal interface requirements. This paragraph shall specify the requirements,
@@ -268,7 +268,7 @@ stated. If such requirements are to be imposed, paragraph 3.3 of this DID provid
 topics to be considered.
 """
 
-[files."src/03-requirements/03.05_system_internal_data_requirements.md"]
+[files."src/03_requirements/03.05_system_internal_data_requirements.md"]
 heading = "System internal data requirements"
 guidance = """
 3.5 System internal data requirements. This paragraph shall specify the requirements, if
@@ -279,7 +279,7 @@ such requirements are to be imposed, paragraphs 3.3.x.c and 3.3.x.d of this DID 
 topics to be considered.
 """
 
-[files."src/03-requirements/03.06_adaptation_requirements.md"]
+[files."src/03_requirements/03.06_adaptation_requirements.md"]
 heading = "Adaptation requirements"
 guidance = """
 3.6 Adaptation requirements. This paragraph shall specify the requirements, if any,
@@ -289,7 +289,7 @@ that the system is required to use that may vary according to operational needs 
 parameters indicating operation-dependent targeting constants or data recording).
 """
 
-[files."src/03-requirements/03.07_safety_requirements.md"]
+[files."src/03_requirements/03.07_safety_requirements.md"]
 heading = "Safety requirements"
 guidance = """
 3.7 Safety requirements. This paragraph shall specify the system requirements, if any,
@@ -302,7 +302,7 @@ nuclear components, including, as applicable, requirements for component design,
 inadvertent detonation, and compliance with nuclear safety rules.
 """
 
-[files."src/03-requirements/03.08_security_and_privacy_requirements.md"]
+[files."src/03_requirements/03.08_security_and_privacy_requirements.md"]
 heading = "Security and privacy requirements"
 guidance = """
 3.8 Security and privacy requirements. This paragraph shall specify the system
@@ -314,7 +314,7 @@ the security/privacy accountability the system must provide, and the criteria th
 security/privacy certification/accreditation.
 """
 
-[files."src/03-requirements/03.09_system_environment_requirements.md"]
+[files."src/03_requirements/03.09_system_environment_requirements.md"]
 heading = "System environment requirements"
 guidance = """
 3.9 System environment requirements. This paragraph shall specify the requirements, if
@@ -328,7 +328,7 @@ shock, noise, electromagnetic radiation), and environments due to enemy action (
 radiation).
 """
 
-[files."src/03-requirements/03.10_computer_resource_requirements.md"]
+[files."src/03_requirements/03.10_computer_resource_requirements.md"]
 heading = "Computer resource requirements"
 guidance = """
 3.10 Computer resource requirements. This paragraph shall be divided into the
@@ -337,7 +337,7 @@ covered in these subparagraphs may constitute the environment of the system (as 
 system) or components of the system (as for a hardware-software system).
 """
 
-[files."src/03-requirements/03.10.01_computer_hardware_requirements.md"]
+[files."src/03_requirements/03.10.01_computer_hardware_requirements.md"]
 heading = "Computer hardware requirements"
 guidance = """
 3.10.1 Computer hardware requirements. This paragraph shall specify the requirements,
@@ -347,7 +347,7 @@ and other required characteristics of processors, memory, input/output devices, 
 communications/network equipment, and other required equipment.
 """
 
-[files."src/03-requirements/03.10.02_computer_hardware_resource_utilization_requirements.md"]
+[files."src/03_requirements/03.10.02_computer_hardware_resource_utilization_requirements.md"]
 heading = "Computer hardware resource utilization requirements"
 guidance = """
 3.10.2 Computer hardware resource utilization requirements. This paragraph shall
@@ -359,7 +359,7 @@ resource) shall include the conditions, if any, under which the resource utiliza
 measured.
 """
 
-[files."src/03-requirements/03.10.03_computer_software_requirements.md"]
+[files."src/03_requirements/03.10.03_computer_software_requirements.md"]
 heading = "Computer software requirements"
 guidance = """
 3.10.3 Computer software requirements. This paragraph shall specify the requirements,
@@ -370,7 +370,7 @@ software. The correct nomenclature, version, and documentation references of eac
 software item shall be provided.
 """
 
-[files."src/03-requirements/03.10.04_computer_communications_requirements.md"]
+[files."src/03_requirements/03.10.04_computer_communications_requirements.md"]
 heading = "Computer communications requirements"
 guidance = """
 3.10.4 Computer communications requirements. This paragraph shall specify the
@@ -381,7 +381,7 @@ required system use times; type and volume of data to be transmitted/received; t
 for transmission/reception/response; peak volumes of data; and diagnostic features.
 """
 
-[files."src/03-requirements/03.11_system_quality_factors.md"]
+[files."src/03_requirements/03.11_system_quality_factors.md"]
 heading = "System quality factors"
 guidance = """
 3.11 System quality factors. This paragraph shall specify the requirements, if any,
@@ -396,7 +396,7 @@ to be easily and thoroughly tested), usability (the ability to be easily learned
 attributes.
 """
 
-[files."src/03-requirements/03.12_design_and_construction_constraints.md"]
+[files."src/03_requirements/03.12_design_and_construction_constraints.md"]
 heading = "Design and construction constraints"
 guidance = """
 3.12 Design and construction constraints. This paragraph shall specify the requirements,
@@ -421,7 +421,7 @@ f. -Flexibility and expandability that must be provided to support anticipated a
 growth or changes in technology, threat, or mission
 """
 
-[files."src/03-requirements/03.13_personnel_related_requirements.md"]
+[files."src/03_requirements/03.13_personnel_related_requirements.md"]
 heading = "Personnel-related requirements"
 guidance = """
 3.13 Personnel-related requirements. This paragraph shall specify the system
@@ -436,7 +436,7 @@ Examples include requirements for adjustable-height workstations, color and dura
 messages, physical placement of critical indicators or buttons, and use of auditory signals.
 """
 
-[files."src/03-requirements/03.14_training_related_requirements.md"]
+[files."src/03_requirements/03.14_training_related_requirements.md"]
 heading = "Training-related requirements"
 guidance = """
 3.14 Training-related requirements. This paragraph shall specify the system
@@ -444,7 +444,7 @@ requirements, if any, pertaining to training. Examples include training devices 
 materials to be included in the system.
 """
 
-[files."src/03-requirements/03.15_logistics_related_requirements.md"]
+[files."src/03_requirements/03.15_logistics_related_requirements.md"]
 heading = "Logistics-related requirements"
 guidance = """
 3.15 Logistics-related requirements. This paragraph shall specify the system
@@ -453,7 +453,7 @@ system maintenance, software support, system transportation modes, supply-system
 requirements, impact on existing facilities, and impact on existing equipment.
 """
 
-[files."src/03-requirements/03.16_other_requirements.md"]
+[files."src/03_requirements/03.16_other_requirements.md"]
 heading = "Other requirements"
 guidance = """
 3.16 Other requirements. This paragraph shall specify additional system requirements, if
@@ -462,7 +462,7 @@ documentation, such as specifications, drawings, technical manuals, test plans a
 and installation instruction data, if not covered in other contractual documents.
 """
 
-[files."src/03-requirements/03.17_packaging_requirements.md"]
+[files."src/03_requirements/03.17_packaging_requirements.md"]
 heading = "Packaging requirements"
 guidance = """
 3.17 Packaging requirements. This section shall specify the requirements, if any, for
@@ -470,7 +470,7 @@ packaging, labeling, and handling the system and its components for delivery. Ap
 military specifications and standards may be referenced if appropriate.
 """
 
-[files."src/03-requirements/03.18_precedence_and_criticality_of_requirements.md"]
+[files."src/03_requirements/03.18_precedence_and_criticality_of_requirements.md"]
 heading = "Precedence and criticality of requirements"
 guidance = """
 3.18 Precedence and criticality of requirements. This paragraph shall specify, if
@@ -484,7 +484,7 @@ out for special treatment. If all requirements have equal weight, this paragraph
 # SECTION 4: QUALIFICATION PROVISIONS
 # =============================================================================
 
-[files."src/04-qualification_provisions/04.00_qualification_provisions.md"]
+[files."src/04_qualification_provisions/04.00_qualification_provisions.md"]
 heading = "Qualification provisions"
 guidance = """
 4. Qualification provisions. This section shall define a set of qualification methods and
@@ -514,7 +514,7 @@ preproduction or periodic production samples, pilot models, or pilot lots.
 # SECTION 5: REQUIREMENTS TRACEABILITY
 # =============================================================================
 
-[files."src/05-requirements_traceability/05.00_requirements_traceability.md"]
+[files."src/05_requirements_traceability/05.00_requirements_traceability.md"]
 heading = "Requirements traceability"
 guidance = """
 5. Requirements traceability. For system-level specifications, this paragraph does not
@@ -541,7 +541,7 @@ requirements contained in IRSs shall reference these IRSs.
 # SECTION 6: NOTES
 # =============================================================================
 
-[files."src/06-notes/06.00_notes.md"]
+[files."src/06_notes/06.00_notes.md"]
 heading = "Notes"
 guidance = """
 6. Notes. This section shall contain any general information that aids in understanding
@@ -550,14 +550,14 @@ alphabetical listing of all acronyms, abbreviations, and their meanings as used 
 and a list of any terms and definitions needed to understand this document.
 """
 
-[files."src/06-notes/06.01_acronyms_and_abbreviations.md"]
+[files."src/06_notes/06.01_acronyms_and_abbreviations.md"]
 heading = "Acronyms and abbreviations"
 guidance = """
 This paragraph shall include an alphabetical listing of all acronyms, abbreviations, and their
 meanings as used in this document.
 """
 
-[files."src/06-notes/06.02_glossary.md"]
+[files."src/06_notes/06.02_glossary.md"]
 heading = "Glossary"
 guidance = """
 This paragraph shall include a list of any terms and definitions needed to understand this document.

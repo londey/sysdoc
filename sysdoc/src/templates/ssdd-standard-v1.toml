@@ -57,12 +57,12 @@ Run `sysdoc build` to generate the final document.
 
 ## Structure
 
-- `src/01-scope/` - Identification, system overview, document overview
-- `src/02-referenced_documents/` - Referenced documents
-- `src/03-system_wide_design_decisions/` - System-wide design decisions
-- `src/04-system_architectural_design/` - Components, execution, interfaces
-- `src/05-requirements_traceability/` - Requirements traceability
-- `src/06-notes/` - General information, acronyms, glossary
+- `src/01_scope/` - Identification, system overview, document overview
+- `src/02_referenced_documents/` - Referenced documents
+- `src/03_system_wide_design_decisions/` - System-wide design decisions
+- `src/04_system_architectural_design/` - Components, execution, interfaces
+- `src/05_requirements_traceability/` - Requirements traceability
+- `src/06_notes/` - General information, acronyms, glossary
 - `src/appendices/` - Appendices
 
 ## Related Documents
@@ -75,13 +75,13 @@ Run `sysdoc build` to generate the final document.
 # SECTION 1: SCOPE
 # =============================================================================
 
-[files."src/01-scope/01.00_scope.md"]
+[files."src/01_scope/01.00_scope.md"]
 heading = "Scope"
 guidance = """
 1. Scope. This section shall be divided into the following paragraphs.
 """
 
-[files."src/01-scope/01.01_identification.md"]
+[files."src/01_scope/01.01_identification.md"]
 heading = "Identification"
 guidance = """
 1.1 Identification. This paragraph shall contain a full identification of the system and
@@ -89,7 +89,7 @@ software to which this document applies, including, as applicable, identificatio
 title(s), abbreviation(s), version number(s), and release number(s).
 """
 
-[files."src/01-scope/01.02_system_overview.md"]
+[files."src/01_scope/01.02_system_overview.md"]
 heading = "System overview"
 guidance = """
 1.2 System overview. This paragraph shall briefly state the purpose of the system and
@@ -99,7 +99,7 @@ identify the project sponsor, acquirer, user, developer, and support agencies; i
 planned operating sites; and list other relevant documents.
 """
 
-[files."src/01-scope/01.03_document_overview.md"]
+[files."src/01_scope/01.03_document_overview.md"]
 heading = "Document overview"
 guidance = """
 1.3 Document overview. This paragraph shall summarize the purpose and contents of
@@ -110,7 +110,7 @@ this document and shall describe any security or privacy considerations associat
 # SECTION 2: REFERENCED DOCUMENTS
 # =============================================================================
 
-[files."src/02-referenced_documents/02.00_referenced_documents.md"]
+[files."src/02_referenced_documents/02.00_referenced_documents.md"]
 heading = "Referenced documents"
 guidance = """
 2. Referenced documents. This section shall list the number, title, revision, and date of
@@ -122,7 +122,7 @@ documents not available through normal Government stocking activities.
 # SECTION 3: SYSTEM-WIDE DESIGN DECISIONS
 # =============================================================================
 
-[files."src/03-system_wide_design_decisions/03.00_system_wide_design_decisions.md"]
+[files."src/03_system_wide_design_decisions/03.00_system_wide_design_decisions.md"]
 heading = "System-wide design decisions"
 guidance = """
 3. System-wide design decisions. This section shall be divided into paragraphs as
@@ -163,7 +163,7 @@ selected approach to providing required flexibility, availability, and maintaina
 # SECTION 4: SYSTEM ARCHITECTURAL DESIGN
 # =============================================================================
 
-[files."src/04-system_architectural_design/04.00_system_architectural_design.md"]
+[files."src/04_system_architectural_design/04.00_system_architectural_design.md"]
 heading = "System architectural design"
 guidance = """
 4. System architectural design. This section shall be divided into the following
@@ -179,7 +179,7 @@ organizing a subsystem into HWCIs, CSCIs, and manual operations, or other variat
 appropriate.
 """
 
-[files."src/04-system_architectural_design/04.01_system_components.md"]
+[files."src/04_system_architectural_design/04.01_system_components.md"]
 heading = "System components"
 guidance = """
 4.1 System components. This paragraph shall:
@@ -237,7 +237,7 @@ f. Present a specification tree for the system, that is, a diagram that identifi
 the relationships among the planned specifications for the system components.
 """
 
-[files."src/04-system_architectural_design/04.02_concept_of_execution.md"]
+[files."src/04_system_architectural_design/04.02_concept_of_execution.md"]
 heading = "Concept of execution"
 guidance = """
 4.2 Concept of execution. This paragraph shall describe the concept of execution among
@@ -250,7 +250,7 @@ concurrent execution, dynamic allocation/deallocation, dynamic creation/deletion
 processes, tasks, assembly, storage, deployment, and other aspects of dynamic behavior.
 """
 
-[files."src/04-system_architectural_design/04.03_interface_design.md"]
+[files."src/04_system_architectural_design/04.03_interface_design.md"]
 heading = "Interface design"
 guidance = """
 4.3 Interface design. This paragraph shall be divided into the following subparagraphs to
@@ -263,7 +263,7 @@ contained in Interface Design Descriptions (IDDs) or elsewhere, these sources ma
 referenced.
 """
 
-[files."src/04-system_architectural_design/04.03.01_interface_identification_and_diagrams.md"]
+[files."src/04_system_architectural_design/04.03.01_interface_identification_and_diagrams.md"]
 heading = "Interface identification and diagrams"
 guidance = """
 4.3.1 Interface identification and diagrams. This paragraph shall state the project-unique
@@ -275,7 +275,7 @@ or modified (thus having interface requirements imposed on them). One or more in
 diagrams shall be provided, as appropriate, to depict the interfaces.
 """
 
-[files."src/04-system_architectural_design/04.03.02_interface_characteristics.md"]
+[files."src/04_system_architectural_design/04.03.02_interface_characteristics.md"]
 heading = "Project-unique identifier of interface"
 guidance = """
 4.3.x (Project-unique identifier of interface). This paragraph (beginning with 4.3.2) shall
@@ -366,7 +366,7 @@ g. Other characteristics, such as physical compatibility of the interfacing enti
 # SECTION 5: REQUIREMENTS TRACEABILITY
 # =============================================================================
 
-[files."src/05-requirements_traceability/05.00_requirements_traceability.md"]
+[files."src/05_requirements_traceability/05.00_requirements_traceability.md"]
 heading = "Requirements traceability"
 guidance = """
 5. Requirements traceability. This section shall contain:
@@ -382,7 +382,7 @@ allocated.
 # SECTION 6: NOTES
 # =============================================================================
 
-[files."src/06-notes/06.00_notes.md"]
+[files."src/06_notes/06.00_notes.md"]
 heading = "Notes"
 guidance = """
 6. Notes. This section shall contain any general information that aids in understanding
@@ -391,14 +391,14 @@ alphabetical listing of all acronyms, abbreviations, and their meanings as used 
 and a list of any terms and definitions needed to understand this document.
 """
 
-[files."src/06-notes/06.01_acronyms_and_abbreviations.md"]
+[files."src/06_notes/06.01_acronyms_and_abbreviations.md"]
 heading = "Acronyms and abbreviations"
 guidance = """
 This paragraph shall include an alphabetical listing of all acronyms, abbreviations, and their
 meanings as used in this document.
 """
 
-[files."src/06-notes/06.02_glossary.md"]
+[files."src/06_notes/06.02_glossary.md"]
 heading = "Glossary"
 guidance = """
 This paragraph shall include a list of any terms and definitions needed to understand this document.
