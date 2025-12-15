@@ -82,50 +82,11 @@ fn main() {
 
             // Check if directory is empty (unless force flag is set)
             if !force {
-                if let Ok(entries) = std::fs::read_dir(&target_path) {
-                    if entries.count() > 0 {
-                        eprintln!("Error: Target directory is not empty");
-                        eprintln!("Use --force to overwrite existing files");
-                        std::process::exit(1);
-                    }
-                }
+                check_directory_empty(&target_path);
             }
 
             // Create all files from the template
-            let mut files_created = 0;
-            for file_path in config.files.keys() {
-                let full_path = target_path.join(file_path);
-
-                // Create parent directories if needed
-                if let Some(parent) = full_path.parent() {
-                    if let Err(e) = std::fs::create_dir_all(parent) {
-                        eprintln!("Error creating directory {}: {}", parent.display(), e);
-                        std::process::exit(1);
-                    }
-                }
-
-                // Generate file content
-                let mut content = match config.generate_file_content(file_path) {
-                    Some(c) => c,
-                    None => {
-                        eprintln!("Error: Could not generate content for {}", file_path);
-                        continue;
-                    }
-                };
-
-                // Replace title placeholder if provided
-                if let Some(ref title_text) = title {
-                    content = content.replace("{{TITLE}}", title_text);
-                }
-
-                // Write the file
-                if let Err(e) = std::fs::write(&full_path, content) {
-                    eprintln!("Error writing file {}: {}", full_path.display(), e);
-                    std::process::exit(1);
-                }
-
-                files_created += 1;
-            }
+            let files_created = create_template_files(&config, &target_path, &title);
 
             println!("\n✓ Successfully created {} files", files_created);
             println!("\nNext steps:");
@@ -144,37 +105,14 @@ fn main() {
             no_images,
         } => {
             if verbose {
-                println!("Building documentation...");
-                println!("Input: {}", input.display());
-                println!("Output: {}", output.display());
-                match format {
-                    OutputFormat::Docx => println!("Format: DOCX"),
-                    OutputFormat::Markdown => {
-                        println!("Format: Markdown with images folder");
-                        if no_images {
-                            println!("Warning: --no-images has no effect in Markdown format");
-                        }
-                    }
-                }
+                print_build_info(&input, &output, format, no_images);
             }
 
             // Walk the document directory and build the model
             match walk_document(&input) {
                 Ok(document) => {
                     if verbose {
-                        println!("\nDiscovered {} sections:", document.sections.len());
-                        for section in &document.sections {
-                            println!(
-                                "  {} - {} (depth: {}, {} chars, {} events, {} images, {} tables)",
-                                section.number,
-                                section.title,
-                                section.depth,
-                                section.content.len(),
-                                section.events.len(),
-                                section.images.len(),
-                                section.tables.len()
-                            );
-                        }
+                        print_section_summary(&document);
                     }
 
                     println!("\nDocument parsed successfully!");
@@ -244,4 +182,115 @@ fn main() {
             println!("Example: sysdoc init SDD ./my-document");
         }
     }
+}
+
+/// Check if a directory is empty and exit if not
+fn check_directory_empty(path: &std::path::Path) {
+    if let Ok(entries) = std::fs::read_dir(path) {
+        if entries.count() > 0 {
+            eprintln!("Error: Target directory is not empty");
+            eprintln!("Use --force to overwrite existing files");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Create all files from the template
+fn create_template_files(
+    config: &template_config::TemplateConfig,
+    target_path: &std::path::Path,
+    title: &Option<String>,
+) -> usize {
+    let mut files_created = 0;
+
+    for file_path in config.files.keys() {
+        if create_single_file(config, target_path, file_path, title) {
+            files_created += 1;
+        }
+    }
+
+    files_created
+}
+
+/// Create a single file from the template
+fn create_single_file(
+    config: &template_config::TemplateConfig,
+    target_path: &std::path::Path,
+    file_path: &str,
+    title: &Option<String>,
+) -> bool {
+    let full_path = target_path.join(file_path);
+
+    // Create parent directories if needed
+    if let Some(parent) = full_path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("Error creating directory {}: {}", parent.display(), e);
+            std::process::exit(1);
+        }
+    }
+
+    // Generate file content
+    let mut content = match config.generate_file_content(file_path) {
+        Some(c) => c,
+        None => {
+            eprintln!("Error: Could not generate content for {}", file_path);
+            return false;
+        }
+    };
+
+    // Replace title placeholder if provided
+    if let Some(ref title_text) = title {
+        content = content.replace("{{TITLE}}", title_text);
+    }
+
+    // Write the file
+    if let Err(e) = std::fs::write(&full_path, content) {
+        eprintln!("Error writing file {}: {}", full_path.display(), e);
+        std::process::exit(1);
+    }
+
+    true
+}
+
+/// Print build information
+fn print_build_info(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    format: OutputFormat,
+    no_images: bool,
+) {
+    println!("Building documentation...");
+    println!("Input: {}", input.display());
+    println!("Output: {}", output.display());
+    match format {
+        OutputFormat::Docx => println!("Format: DOCX"),
+        OutputFormat::Markdown => {
+            println!("Format: Markdown with images folder");
+            if no_images {
+                println!("Warning: --no-images has no effect in Markdown format");
+            }
+        }
+    }
+}
+
+/// Print section summary
+fn print_section_summary(document: &document_model::DocumentModel) {
+    println!("\nDiscovered {} sections:", document.sections.len());
+    for section in &document.sections {
+        print_section_info(section);
+    }
+}
+
+/// Print information about a single section
+fn print_section_info(section: &document_section::DocumentSection) {
+    println!(
+        "  {} - {} (depth: {}, {} chars, {} events, {} images, {} tables)",
+        section.number,
+        section.title,
+        section.depth,
+        section.content.len(),
+        section.events.len(),
+        section.images.len(),
+        section.tables.len()
+    );
 }

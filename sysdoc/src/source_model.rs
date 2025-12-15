@@ -32,41 +32,76 @@ impl SourceModel {
 
     /// Validate that all referenced resources exist
     pub fn validate(&self) -> Result<(), ValidationError> {
-        let mut errors = Vec::new();
+        let image_errors = self.validate_image_references();
+        let table_errors = self.validate_table_references();
 
-        // Check that all image references are valid
-        for md_file in &self.markdown_files {
-            for section in &md_file.sections {
-                for img_ref in &section.image_refs {
-                    if !self.image_files.iter().any(|img| img.path == img_ref.path) {
-                        errors.push(ValidationError::MissingImage {
-                            referenced_in: md_file.path.clone(),
-                            image_path: img_ref.path.clone(),
-                        });
-                    }
-                }
-            }
-        }
-
-        // Check that all table references are valid
-        for md_file in &self.markdown_files {
-            for section in &md_file.sections {
-                for table_ref in &section.table_refs {
-                    if !self.table_files.iter().any(|tbl| &tbl.path == table_ref) {
-                        errors.push(ValidationError::MissingTable {
-                            referenced_in: md_file.path.clone(),
-                            table_path: table_ref.clone(),
-                        });
-                    }
-                }
-            }
-        }
+        let errors: Vec<ValidationError> = image_errors.into_iter().chain(table_errors).collect();
 
         if errors.is_empty() {
             Ok(())
         } else {
             Err(ValidationError::Multiple(errors))
         }
+    }
+
+    /// Validate all image references
+    fn validate_image_references(&self) -> Vec<ValidationError> {
+        self.markdown_files
+            .iter()
+            .flat_map(|md_file| {
+                md_file
+                    .sections
+                    .iter()
+                    .flat_map(|section| self.validate_section_images(md_file, section))
+            })
+            .collect()
+    }
+
+    /// Validate image references in a single section
+    fn validate_section_images(
+        &self,
+        md_file: &MarkdownSource,
+        section: &MarkdownSection,
+    ) -> Vec<ValidationError> {
+        section
+            .image_refs
+            .iter()
+            .filter(|img_ref| !self.image_files.iter().any(|img| img.path == img_ref.path))
+            .map(|img_ref| ValidationError::MissingImage {
+                referenced_in: md_file.path.clone(),
+                image_path: img_ref.path.clone(),
+            })
+            .collect()
+    }
+
+    /// Validate all table references
+    fn validate_table_references(&self) -> Vec<ValidationError> {
+        self.markdown_files
+            .iter()
+            .flat_map(|md_file| {
+                md_file
+                    .sections
+                    .iter()
+                    .flat_map(|section| self.validate_section_tables(md_file, section))
+            })
+            .collect()
+    }
+
+    /// Validate table references in a single section
+    fn validate_section_tables(
+        &self,
+        md_file: &MarkdownSource,
+        section: &MarkdownSection,
+    ) -> Vec<ValidationError> {
+        section
+            .table_refs
+            .iter()
+            .filter(|table_ref| !self.table_files.iter().any(|tbl| &tbl.path == *table_ref))
+            .map(|table_ref| ValidationError::MissingTable {
+                referenced_in: md_file.path.clone(),
+                table_path: table_ref.clone(),
+            })
+            .collect()
     }
 }
 
@@ -96,53 +131,7 @@ impl MarkdownSource {
         let parser = pulldown_cmark::Parser::new(&self.raw_content);
 
         for event in parser {
-            match &event {
-                Event::Start(pulldown_cmark::Tag::Heading { level, .. }) => {
-                    // Save the previous section if it exists
-                    if let Some(section) = current_section.take() {
-                        sections.push(section);
-                    }
-
-                    // Start a new section
-                    current_section = Some(MarkdownSection {
-                        heading_level: *level as usize,
-                        heading_text: String::new(),
-                        content: Vec::new(),
-                        image_refs: Vec::new(),
-                        table_refs: Vec::new(),
-                    });
-                }
-                Event::Text(text) => {
-                    if let Some(ref mut section) = current_section {
-                        // If we're collecting heading text (no content yet)
-                        if section.content.is_empty() && section.heading_text.is_empty() {
-                            section.heading_text = text.to_string();
-                        }
-                    }
-                }
-                Event::Start(pulldown_cmark::Tag::Image { dest_url, .. }) => {
-                    if let Some(ref mut section) = current_section {
-                        section.image_refs.push(ImageReference {
-                            path: PathBuf::from(dest_url.to_string()),
-                            alt_text: String::new(),
-                        });
-                    }
-                }
-                Event::Start(pulldown_cmark::Tag::Link { dest_url, .. }) => {
-                    if let Some(ref mut section) = current_section {
-                        let url = dest_url.to_string();
-                        if url.ends_with(".csv") {
-                            section.table_refs.push(PathBuf::from(url));
-                        }
-                    }
-                }
-                _ => {}
-            }
-
-            // Add all events to the current section's content
-            if let Some(ref mut section) = current_section {
-                section.content.push(MarkdownContent::from_event(event));
-            }
+            current_section = Self::process_event(event, current_section, &mut sections);
         }
 
         // Don't forget the last section
@@ -151,6 +140,113 @@ impl MarkdownSource {
         }
 
         self.sections = sections;
+    }
+
+    /// Process a single markdown event and update section state
+    fn process_event(
+        event: Event<'_>,
+        current_section: Option<MarkdownSection>,
+        sections: &mut Vec<MarkdownSection>,
+    ) -> Option<MarkdownSection> {
+        // Extract data from event before consuming it
+        match event {
+            Event::Start(pulldown_cmark::Tag::Heading { level, .. }) => {
+                Self::start_new_section(level as usize, current_section, sections)
+            }
+            Event::Text(ref text) => {
+                let text_str = text.to_string();
+                let event_clone = event.clone();
+                Self::process_text(&text_str, current_section, event_clone)
+            }
+            Event::Start(pulldown_cmark::Tag::Image { ref dest_url, .. }) => {
+                let url = dest_url.to_string();
+                let event_clone = event.clone();
+                Self::process_image(&url, current_section, event_clone)
+            }
+            Event::Start(pulldown_cmark::Tag::Link { ref dest_url, .. }) => {
+                let url = dest_url.to_string();
+                let event_clone = event.clone();
+                Self::process_link(&url, current_section, event_clone)
+            }
+            _ => Self::add_content_to_section(current_section, event),
+        }
+    }
+
+    /// Start a new section and save the previous one
+    fn start_new_section(
+        level: usize,
+        current_section: Option<MarkdownSection>,
+        sections: &mut Vec<MarkdownSection>,
+    ) -> Option<MarkdownSection> {
+        if let Some(section) = current_section {
+            sections.push(section);
+        }
+
+        Some(MarkdownSection {
+            heading_level: level,
+            heading_text: String::new(),
+            content: Vec::new(),
+            image_refs: Vec::new(),
+            table_refs: Vec::new(),
+        })
+    }
+
+    /// Process text event
+    fn process_text(
+        text: &str,
+        mut current_section: Option<MarkdownSection>,
+        event: Event<'_>,
+    ) -> Option<MarkdownSection> {
+        if let Some(ref mut section) = current_section {
+            // If we're collecting heading text (no content yet)
+            if section.content.is_empty() && section.heading_text.is_empty() {
+                section.heading_text = text.to_string();
+            }
+            section.content.push(MarkdownContent::from_event(event));
+        }
+        current_section
+    }
+
+    /// Process image event
+    fn process_image(
+        dest_url: &str,
+        mut current_section: Option<MarkdownSection>,
+        event: Event<'_>,
+    ) -> Option<MarkdownSection> {
+        if let Some(ref mut section) = current_section {
+            section.image_refs.push(ImageReference {
+                path: PathBuf::from(dest_url),
+                alt_text: String::new(),
+            });
+            section.content.push(MarkdownContent::from_event(event));
+        }
+        current_section
+    }
+
+    /// Process link event (check for CSV tables)
+    fn process_link(
+        dest_url: &str,
+        mut current_section: Option<MarkdownSection>,
+        event: Event<'_>,
+    ) -> Option<MarkdownSection> {
+        if let Some(ref mut section) = current_section {
+            if dest_url.ends_with(".csv") {
+                section.table_refs.push(PathBuf::from(dest_url));
+            }
+            section.content.push(MarkdownContent::from_event(event));
+        }
+        current_section
+    }
+
+    /// Add content to current section
+    fn add_content_to_section(
+        mut current_section: Option<MarkdownSection>,
+        event: Event<'_>,
+    ) -> Option<MarkdownSection> {
+        if let Some(ref mut section) = current_section {
+            section.content.push(MarkdownContent::from_event(event));
+        }
+        current_section
     }
 }
 

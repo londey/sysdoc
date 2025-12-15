@@ -343,36 +343,48 @@ impl ContentTransformer {
         let mut current_paragraph: Vec<InlineContent> = Vec::new();
 
         for item in content {
-            match item {
-                MarkdownContent::Text(text) => {
-                    current_paragraph.push(InlineContent::Text(text.clone()));
-                }
-                MarkdownContent::SoftBreak => {
-                    current_paragraph.push(InlineContent::SoftBreak);
-                }
-                MarkdownContent::HardBreak => {
-                    current_paragraph.push(InlineContent::HardBreak);
-                }
-                MarkdownContent::Rule => {
-                    if !current_paragraph.is_empty() {
-                        blocks.push(ContentBlock::Paragraph(current_paragraph.clone()));
-                        current_paragraph.clear();
-                    }
-                    blocks.push(ContentBlock::Rule);
-                }
-                _ => {
-                    // For other content types, we'd need more sophisticated
-                    // state machine logic to properly handle the tree structure
-                }
-            }
+            Self::process_content_item(item, &mut blocks, &mut current_paragraph);
         }
 
         // Don't forget the last paragraph
-        if !current_paragraph.is_empty() {
-            blocks.push(ContentBlock::Paragraph(current_paragraph));
-        }
+        Self::flush_paragraph(&mut blocks, &mut current_paragraph);
 
         blocks
+    }
+
+    /// Process a single content item
+    fn process_content_item(
+        item: &MarkdownContent,
+        blocks: &mut Vec<ContentBlock>,
+        current_paragraph: &mut Vec<InlineContent>,
+    ) {
+        match item {
+            MarkdownContent::Text(text) => {
+                current_paragraph.push(InlineContent::Text(text.clone()));
+            }
+            MarkdownContent::SoftBreak => {
+                current_paragraph.push(InlineContent::SoftBreak);
+            }
+            MarkdownContent::HardBreak => {
+                current_paragraph.push(InlineContent::HardBreak);
+            }
+            MarkdownContent::Rule => {
+                Self::flush_paragraph(blocks, current_paragraph);
+                blocks.push(ContentBlock::Rule);
+            }
+            _ => {
+                // For other content types, we'd need more sophisticated
+                // state machine logic to properly handle the tree structure
+            }
+        }
+    }
+
+    /// Flush the current paragraph to blocks if not empty
+    fn flush_paragraph(blocks: &mut Vec<ContentBlock>, current_paragraph: &mut Vec<InlineContent>) {
+        if !current_paragraph.is_empty() {
+            blocks.push(ContentBlock::Paragraph(current_paragraph.clone()));
+            current_paragraph.clear();
+        }
     }
 }
 
