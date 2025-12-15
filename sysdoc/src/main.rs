@@ -57,7 +57,10 @@ fn main() {
                 }
             };
 
-            println!("Initializing {} document from template: {}", config.document_type, config.name);
+            println!(
+                "Initializing {} document from template: {}",
+                config.document_type, config.name
+            );
             println!("Target path: {}", target_path.display());
             if let Some(ref title_text) = title {
                 println!("Title: {}", title_text);
@@ -223,7 +226,10 @@ fn main() {
             println!("Available DID templates:\n");
 
             for template in templates::get_all_templates() {
-                println!("  {} - {} ({})", template.spec, template.doc_type, template.id);
+                println!(
+                    "  {} - {} ({})",
+                    template.spec, template.doc_type, template.id
+                );
                 println!("    Aliases: {}, {}", template.doc_type, template.id);
                 println!();
             }

@@ -7,7 +7,11 @@ fn test_sdd_template_exists() {
         .unwrap()
         .join("templates/sdd-standard-v1.toml");
 
-    assert!(template_path.exists(), "SDD template should exist at {:?}", template_path);
+    assert!(
+        template_path.exists(),
+        "SDD template should exist at {:?}",
+        template_path
+    );
 }
 
 #[test]
@@ -17,9 +21,8 @@ fn test_sdd_template_loads() {
         .unwrap()
         .join("templates/sdd-standard-v1.toml");
 
-    let content = std::fs::read_to_string(&template_path)
-        .expect("Should be able to read template file");
+    let content =
+        std::fs::read_to_string(&template_path).expect("Should be able to read template file");
 
-    let _config: toml::Value = toml::from_str(&content)
-        .expect("Template should be valid TOML");
+    let _config: toml::Value = toml::from_str(&content).expect("Template should be valid TOML");
 }

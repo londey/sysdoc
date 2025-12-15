@@ -42,22 +42,20 @@ pub struct Person {
 impl DocumentConfig {
     /// Load configuration from a sysdoc.toml file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, DocumentConfigError> {
-        let content = fs::read_to_string(&path)
-            .map_err(|e| DocumentConfigError::IoError(e))?;
+        let content = fs::read_to_string(&path).map_err(|e| DocumentConfigError::IoError(e))?;
 
-        let config: DocumentConfig = toml::from_str(&content)
-            .map_err(|e| DocumentConfigError::ParseError(e))?;
+        let config: DocumentConfig =
+            toml::from_str(&content).map_err(|e| DocumentConfigError::ParseError(e))?;
 
         Ok(config)
     }
 
     /// Save configuration to a sysdoc.toml file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), DocumentConfigError> {
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| DocumentConfigError::SerializeError(e))?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| DocumentConfigError::SerializeError(e))?;
 
-        fs::write(&path, content)
-            .map_err(|e| DocumentConfigError::IoError(e))?;
+        fs::write(&path, content).map_err(|e| DocumentConfigError::IoError(e))?;
 
         Ok(())
     }
@@ -118,7 +116,10 @@ mod tests {
         let parsed: DocumentConfig = toml::from_str(&toml_str).unwrap();
 
         assert_eq!(parsed.document_id, "SDD-001");
-        assert_eq!(parsed.document_name, "Flight Control Software Design Description");
+        assert_eq!(
+            parsed.document_name,
+            "Flight Control Software Design Description"
+        );
         assert_eq!(parsed.document_owner.name, "John Doe");
         assert_eq!(parsed.document_owner.email, "john.doe@example.com");
         assert_eq!(parsed.document_approver.name, "Jane Smith");

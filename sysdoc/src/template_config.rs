@@ -45,11 +45,10 @@ pub enum FileTemplate {
 impl TemplateConfig {
     /// Load template configuration from a .toml file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, TemplateConfigError> {
-        let content = fs::read_to_string(&path)
-            .map_err(TemplateConfigError::IoError)?;
+        let content = fs::read_to_string(&path).map_err(TemplateConfigError::IoError)?;
 
-        let config: TemplateConfig = toml::from_str(&content)
-            .map_err(TemplateConfigError::ParseError)?;
+        let config: TemplateConfig =
+            toml::from_str(&content).map_err(TemplateConfigError::ParseError)?;
 
         Ok(config)
     }
@@ -148,7 +147,9 @@ software to which this document applies.
         assert!(sysdoc_content.contains("document_id = \"SDD-XXX\""));
 
         // Test markdown file with guidance
-        let md_content = config.generate_file_content("src/01-scope/01.01_identification.md").unwrap();
+        let md_content = config
+            .generate_file_content("src/01-scope/01.01_identification.md")
+            .unwrap();
         assert!(md_content.contains("<!-- GUIDANCE:"));
         assert!(md_content.contains("1.1 Identification"));
         assert!(md_content.contains("# Identification"));
