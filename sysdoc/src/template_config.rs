@@ -72,6 +72,7 @@ impl TemplateConfig {
 
 /// Errors that can occur when loading template configuration
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum TemplateConfigError {
     /// IO error when reading file
     IoError(std::io::Error),
