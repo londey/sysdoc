@@ -24,7 +24,7 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
     // Load document configuration
     let config_path = root.join("sysdoc.toml");
     let config = DocumentConfig::load(&config_path)
-        .map_err(|e| ParseError::ConfigError(config_path.clone(), e))?;
+        .map_err(|e| ParseError::ConfigError(config_path.clone(), Box::new(e)))?;
 
     let mut model = SourceModel::new(root.to_path_buf(), config);
 
@@ -300,7 +300,7 @@ pub enum ParseError {
     InvalidFilename(PathBuf),
     InvalidSectionNumber(PathBuf),
     ValidationError(crate::source_model::ValidationError),
-    ConfigError(PathBuf, crate::document_config::DocumentConfigError),
+    ConfigError(PathBuf, Box<crate::document_config::DocumentConfigError>),
 }
 
 impl From<crate::source_model::ValidationError> for ParseError {
