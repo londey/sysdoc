@@ -55,14 +55,19 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
     model.markdown_files = markdown_files?;
 
     // Discover all referenced images
-    let mut image_paths = std::collections::HashSet::new();
-    for md_file in &model.markdown_files {
-        for section in &md_file.sections {
-            for img_ref in &section.image_refs {
-                image_paths.insert(img_ref.path.clone());
+    let image_paths: std::collections::HashSet<_> = model
+        .markdown_files
+        .iter()
+        .flat_map(|md_file| &md_file.sections)
+        .flat_map(|section| &section.content)
+        .filter_map(|content| {
+            if let crate::source_model::MarkdownContent::Image(img_ref) = content {
+                Some(img_ref.path.clone())
+            } else {
+                None
             }
-        }
-    }
+        })
+        .collect();
 
     // Load image metadata
     for path in image_paths {

@@ -72,8 +72,15 @@ impl SourceModel {
         section: &MarkdownSection,
     ) -> Vec<ValidationError> {
         section
-            .image_refs
+            .content
             .iter()
+            .filter_map(|content| {
+                if let MarkdownContent::Image(img_ref) = content {
+                    Some(img_ref)
+                } else {
+                    None
+                }
+            })
             .filter(|img_ref| !self.image_files.iter().any(|img| img.path == img_ref.path))
             .map(|img_ref| ValidationError::MissingImage {
                 referenced_in: md_file.path.clone(),
@@ -199,7 +206,6 @@ impl MarkdownSource {
             heading_level: level,
             heading_text: String::new(),
             content: Vec::new(),
-            image_refs: Vec::new(),
             table_refs: Vec::new(),
         })
     }
@@ -224,14 +230,13 @@ impl MarkdownSource {
     fn process_image(
         dest_url: &str,
         mut current_section: Option<MarkdownSection>,
-        event: Event<'_>,
+        _event: Event<'_>,
     ) -> Option<MarkdownSection> {
         if let Some(ref mut section) = current_section {
-            section.image_refs.push(ImageReference {
+            section.content.push(MarkdownContent::Image(ImageReference {
                 path: PathBuf::from(dest_url),
                 alt_text: String::new(),
-            });
-            section.content.push(MarkdownContent::from_event(event));
+            }));
         }
         current_section
     }
@@ -276,9 +281,6 @@ pub struct MarkdownSection {
     /// Parsed markdown content as structured elements
     pub content: Vec<MarkdownContent>,
 
-    /// Images referenced in this section
-    pub image_refs: Vec<ImageReference>,
-
     /// CSV tables referenced in this section
     pub table_refs: Vec<PathBuf>,
 }
@@ -308,6 +310,8 @@ pub enum MarkdownContent {
     FootnoteReference(String),
     /// Task list marker
     TaskListMarker(bool),
+    /// Image reference
+    Image(ImageReference),
 }
 
 impl MarkdownContent {
