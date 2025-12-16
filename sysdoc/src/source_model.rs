@@ -3,6 +3,7 @@
 //! This module defines the structures used during Stage 1 (Parsing)
 //! where markdown files, images, and CSV files are loaded and validated.
 
+use crate::document_config::DocumentConfig;
 use pulldown_cmark::Event;
 use std::path::PathBuf;
 
@@ -11,6 +12,8 @@ use std::path::PathBuf;
 pub struct SourceModel {
     /// Root directory of the document
     pub root: PathBuf,
+    /// Document configuration from sysdoc.toml
+    pub config: DocumentConfig,
     /// All markdown source files, ordered by discovery (not sorted yet)
     pub markdown_files: Vec<MarkdownSource>,
     /// All image files referenced in the markdown
@@ -21,9 +24,10 @@ pub struct SourceModel {
 
 impl SourceModel {
     /// Create a new empty source model
-    pub fn new(root: PathBuf) -> Self {
+    pub fn new(root: PathBuf, config: DocumentConfig) -> Self {
         Self {
             root,
+            config,
             markdown_files: Vec::new(),
             image_files: Vec::new(),
             table_files: Vec::new(),

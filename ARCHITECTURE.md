@@ -72,8 +72,8 @@ let markdown_files: Result<Vec<_>, _> = markdown_paths
 **Key Operations**:
 ```rust
 // Transform source model into unified document
-let config = DocumentConfig::load("sysdoc.toml")?;
-let document = pipeline::transform(source_model, config)?;
+// Config is already loaded in the source_model during parsing
+let document = pipeline::transform(source_model)?;
 
 // The unified document contains:
 // - metadata: DocumentMetadata

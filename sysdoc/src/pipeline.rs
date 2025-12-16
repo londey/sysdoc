@@ -21,7 +21,12 @@ use rayon::prelude::*;
 
 /// Stage 1: Parse all source files
 pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
-    let mut model = SourceModel::new(root.to_path_buf());
+    // Load document configuration
+    let config_path = root.join("sysdoc.toml");
+    let config = DocumentConfig::load(&config_path)
+        .map_err(|e| ParseError::ConfigError(config_path.clone(), e))?;
+
+    let mut model = SourceModel::new(root.to_path_buf(), config);
 
     // Discover all markdown files
     let markdown_paths: Vec<PathBuf> = WalkDir::new(root)
@@ -166,23 +171,20 @@ fn parse_filename<'a>(filename: &'a str, path: &Path) -> Result<(&'a str, String
 }
 
 /// Stage 2: Transform source model into unified document
-pub fn transform(
-    source: SourceModel,
-    config: DocumentConfig,
-) -> Result<UnifiedDocument, TransformError> {
+pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError> {
     let metadata = DocumentMetadata {
-        document_id: config.document_id,
-        title: config.document_name,
-        doc_type: config.document_type,
-        standard: config.document_standard,
-        template: config.document_template,
+        document_id: source.config.document_id.clone(),
+        title: source.config.document_name.clone(),
+        doc_type: source.config.document_type.clone(),
+        standard: source.config.document_standard.clone(),
+        template: source.config.document_template.clone(),
         owner: Person {
-            name: config.document_owner.name,
-            email: config.document_owner.email,
+            name: source.config.document_owner.name.clone(),
+            email: source.config.document_owner.email.clone(),
         },
         approver: Person {
-            name: config.document_approver.name,
-            email: config.document_approver.email,
+            name: source.config.document_approver.name.clone(),
+            email: source.config.document_approver.email.clone(),
         },
         version: None,
         created: None,
@@ -298,6 +300,7 @@ pub enum ParseError {
     InvalidFilename(PathBuf),
     InvalidSectionNumber(PathBuf),
     ValidationError(crate::source_model::ValidationError),
+    ConfigError(PathBuf, crate::document_config::DocumentConfigError),
 }
 
 impl From<crate::source_model::ValidationError> for ParseError {
@@ -319,6 +322,9 @@ impl std::fmt::Display for ParseError {
                 write!(f, "Invalid section number in: {}", path.display())
             }
             ParseError::ValidationError(e) => write!(f, "Validation error: {}", e),
+            ParseError::ConfigError(path, e) => {
+                write!(f, "Config error loading {}: {}", path.display(), e)
+            }
         }
     }
 }
