@@ -62,16 +62,30 @@ pub enum MarkdownBlock {
         items: Vec<ListItem>,
     },
 
-    /// A markdown table (not a CSV file)
+    /// An inline markdown table
     ///
-    /// Represents tables defined using markdown pipe syntax
-    Table {
+    /// Represents tables defined using markdown pipe syntax (| col1 | col2 |)
+    InlineTable {
         /// Column alignment specifications (left, center, right, none)
         alignments: Vec<Alignment>,
         /// Header row cells, each cell containing formatted text runs
         headers: Vec<Vec<TextRun>>,
         /// Data rows, where each row contains cells, and each cell contains text runs
         rows: Vec<Vec<Vec<TextRun>>>,
+    },
+
+    /// A CSV table reference with loaded data
+    ///
+    /// Represents a table loaded from an external CSV file
+    CsvTable {
+        /// Path to the CSV file (relative to document root, as written in markdown)
+        path: PathBuf,
+        /// Absolute path to the CSV file
+        absolute_path: PathBuf,
+        /// Whether the CSV file exists on disk
+        exists: bool,
+        /// Parsed CSV data (headers + rows) if loaded successfully
+        data: Option<Vec<Vec<String>>>,
     },
 
     /// A horizontal rule (thematic break)

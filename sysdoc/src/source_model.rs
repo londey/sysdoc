@@ -37,10 +37,8 @@ pub struct SourceModel {
     pub config: DocumentConfig,
 
     /// All markdown source files, ordered by discovery (not sorted yet)
+    /// CSV tables are embedded as CsvTable blocks within the markdown sections
     pub markdown_files: Vec<MarkdownSource>,
-
-    /// All CSV table files referenced in the markdown
-    pub table_files: Vec<TableSource>,
 }
 
 impl SourceModel {
@@ -57,7 +55,6 @@ impl SourceModel {
             root,
             config,
             markdown_files: Vec::new(),
-            table_files: Vec::new(),
         }
     }
 
@@ -133,12 +130,16 @@ impl SourceModel {
         section: &MarkdownSection,
     ) -> Vec<ValidationError> {
         section
-            .table_refs
+            .content
             .iter()
-            .filter(|table_ref| !self.table_files.iter().any(|tbl| &tbl.path == *table_ref))
-            .map(|table_ref| ValidationError::MissingTable {
-                referenced_in: md_file.path.clone(),
-                table_path: table_ref.clone(),
+            .filter_map(|block| match block {
+                MarkdownBlock::CsvTable { path, exists, .. } if !exists => {
+                    Some(ValidationError::MissingTable {
+                        referenced_in: md_file.path.clone(),
+                        table_path: path.clone(),
+                    })
+                }
+                _ => None,
             })
             .collect()
     }

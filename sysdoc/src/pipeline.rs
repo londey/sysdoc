@@ -6,7 +6,7 @@
 //! 3. **Export**: Generate output formats (docx, markdown, etc.)
 
 use crate::document_config::DocumentConfig;
-use crate::source_model::{MarkdownSource, SectionNumber, SourceModel, TableSource};
+use crate::source_model::{MarkdownSource, SectionNumber, SourceModel};
 use crate::unified_document::{
     ContentBlock, DocumentBuilder, DocumentMetadata, DocumentSection, InlineContent, Person,
     UnifiedDocument,
@@ -63,28 +63,8 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
     // Note: Images are now embedded directly in MarkdownBlock::Image with metadata
     // resolved during parsing, so we don't need to collect them separately
 
-    // Discover all referenced tables
-    let mut table_paths = std::collections::HashSet::new();
-    for md_file in &model.markdown_files {
-        for section in &md_file.sections {
-            for table_ref in &section.table_refs {
-                table_paths.insert(table_ref.clone());
-            }
-        }
-    }
-
-    // Load table metadata
-    for path in table_paths {
-        let absolute_path = root.join(&path);
-        if absolute_path.exists() {
-            model.table_files.push(TableSource {
-                path,
-                absolute_path,
-                loaded: false,
-                data: None,
-            });
-        }
-    }
+    // Note: CSV tables are now embedded directly in MarkdownBlock::CsvTable with data
+    // loaded during parsing, so we don't need to collect them separately
 
     // Validate all references
     model.validate()?;
@@ -216,10 +196,8 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
     // Note: Images are now embedded in MarkdownBlock::Image within sections
     // so we don't need to add them separately
 
-    // Add tables
-    for table in source.table_files {
-        builder.add_table(table);
-    }
+    // Note: CSV tables are now embedded in MarkdownBlock::CsvTable within sections
+    // so we don't need to add them separately
 
     Ok(builder.build())
 }

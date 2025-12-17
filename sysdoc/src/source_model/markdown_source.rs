@@ -45,10 +45,9 @@ impl MarkdownSource {
     /// * The first heading must be level 1 (h1)
     /// * Only the first heading may be level 1 (all subsequent headings must be h2+)
     pub fn parse(&mut self, document_root: &Path) -> Result<(), SourceModelError> {
-        let (sections, _table_refs) =
-            super::parser::MarkdownParser::parse(&self.raw_content, document_root)?;
+        let sections = super::parser::MarkdownParser::parse(&self.raw_content, document_root)?;
 
-        // The parser already integrates table refs into the sections
+        // CSV tables are now embedded as CsvTable blocks within sections
         self.sections = sections;
         Ok(())
     }
@@ -65,8 +64,6 @@ pub struct MarkdownSection {
     pub heading_text: String,
 
     /// Parsed markdown content as structured blocks
+    /// CSV tables are embedded as CsvTable blocks within this content
     pub content: Vec<MarkdownBlock>,
-
-    /// CSV tables referenced in this section
-    pub table_refs: Vec<PathBuf>,
 }
