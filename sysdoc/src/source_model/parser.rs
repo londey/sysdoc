@@ -587,3 +587,233 @@ impl Default for MarkdownParser {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pulldown_cmark::{Event, Parser, Tag};
+
+    // ============================================================================
+    // Tests documenting pulldown_cmark behavior
+    // ============================================================================
+
+    #[test]
+    fn test_standalone_image_wrapped_in_paragraph() {
+        // Arrange: Markdown with only an image
+        let markdown = "![alt text](image.png)";
+
+        // Act: Parse markdown into events
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Standalone images are wrapped in paragraph tags
+        assert_eq!(events.len(), 5);
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+        assert!(matches!(events[1], Event::Start(Tag::Image { .. })));
+        assert!(matches!(events[2], Event::Text(_)));
+        assert!(matches!(events[3], Event::End(_))); // End(Image)
+        assert!(matches!(events[4], Event::End(_))); // End(Paragraph)
+    }
+
+    #[test]
+    fn test_image_with_text_in_one_paragraph() {
+        // Arrange: Image surrounded by text
+        let markdown = "Some text ![alt](image.png) more text";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Everything is in one paragraph
+        assert!(matches!(events.first(), Some(Event::Start(Tag::Paragraph))));
+        assert!(matches!(events.last(), Some(Event::End(_))));
+
+        // Verify it contains an image tag
+        let has_image = events.iter().any(|e| matches!(e, Event::Start(Tag::Image { .. })));
+        assert!(has_image, "Should contain an image within the paragraph");
+    }
+
+    #[test]
+    fn test_heading_not_wrapped_in_paragraph() {
+        // Arrange: Markdown heading
+        let markdown = "# Heading";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Heading is NOT wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Heading { .. })));
+        assert!(matches!(events[1], Event::Text(_)));
+        assert!(matches!(events[2], Event::End(_)));
+    }
+
+    #[test]
+    fn test_blockquote_not_wrapped_in_paragraph() {
+        // Arrange: Markdown blockquote
+        let markdown = "> Quote";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: BlockQuote is NOT wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::BlockQuote(_))));
+    }
+
+    #[test]
+    fn test_plain_text_wrapped_in_paragraph() {
+        // Arrange: Plain text
+        let markdown = "Plain text";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Plain text IS wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+        assert!(matches!(events[1], Event::Text(_)));
+        assert!(matches!(events[2], Event::End(_)));
+    }
+
+    #[test]
+    fn test_link_wrapped_in_paragraph() {
+        // Arrange: Markdown link
+        let markdown = "[link](url)";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Links ARE wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+        assert!(matches!(events[1], Event::Start(Tag::Link { .. })));
+    }
+
+    #[test]
+    fn test_inline_code_wrapped_in_paragraph() {
+        // Arrange: Inline code
+        let markdown = "`inline code`";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Inline code IS wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+        assert!(matches!(events[1], Event::Code(_)));
+        assert!(matches!(events[2], Event::End(_)));
+    }
+
+    #[test]
+    fn test_bold_text_wrapped_in_paragraph() {
+        // Arrange: Bold text
+        let markdown = "**bold** text";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Bold text IS wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+        assert!(matches!(events[1], Event::Start(Tag::Strong)));
+    }
+
+    #[test]
+    fn test_list_not_wrapped_in_paragraph() {
+        // Arrange: Markdown list
+        let markdown = "- Item 1\n- Item 2";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: List is NOT wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::List(_))));
+    }
+
+    #[test]
+    fn test_code_block_not_wrapped_in_paragraph() {
+        // Arrange: Fenced code block
+        let markdown = "```rust\ncode\n```";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Code block is NOT wrapped in paragraph
+        assert!(matches!(events[0], Event::Start(Tag::CodeBlock(_))));
+    }
+
+    #[test]
+    fn test_horizontal_rule_not_wrapped() {
+        // Arrange: Horizontal rule
+        let markdown = "---";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Rule is a standalone event
+        assert!(matches!(events[0], Event::Rule));
+    }
+
+    #[test]
+    fn test_multiple_images_in_single_paragraph() {
+        // Arrange: Three images with text between them
+        let markdown = "![img1](a.png) text ![img2](b.png) more ![img3](c.png)";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: All images are in one paragraph
+        assert!(matches!(events[0], Event::Start(Tag::Paragraph)));
+
+        let image_count = events
+            .iter()
+            .filter(|e| matches!(e, Event::Start(Tag::Image { .. })))
+            .count();
+        assert_eq!(image_count, 3);
+
+        assert!(matches!(events[events.len() - 1], Event::End(_)));
+    }
+
+    #[test]
+    fn test_image_in_list_item() {
+        // Arrange: List with image in item
+        let markdown = "- ![image](img.png)";
+
+        // Act: Parse markdown
+        let events: Vec<Event> = Parser::new(markdown).collect();
+
+        // Assert: Verify list structure with image
+        assert!(matches!(events[0], Event::Start(Tag::List(_))));
+        assert!(matches!(events[1], Event::Start(Tag::Item)));
+
+        let has_image = events.iter().any(|e| matches!(e, Event::Start(Tag::Image { .. })));
+        assert!(has_image, "List item should contain image");
+    }
+
+    // ============================================================================
+    // Tests documenting our parser behavior
+    // ============================================================================
+
+    #[test]
+    fn test_our_parser_extracts_images_from_markdown() {
+        // Arrange: Markdown with multiple images
+        let markdown = r#"
+# Section 1
+
+Some text with an ![inline image](inline.png) here.
+
+![standalone image](standalone.png)
+
+More text after.
+"#;
+
+        // Act: Parse with our parser
+        let (sections, _) = MarkdownParser::parse(markdown);
+
+        // Assert: Verify section structure
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].heading_text, "Section 1");
+
+        // Count image blocks (our parser may extract images separately)
+        let image_count = sections[0]
+            .content
+            .iter()
+            .filter(|block| matches!(block, MarkdownBlock::Image { .. }))
+            .count();
+
+        assert!(image_count >= 1, "Should extract at least one image");
+    }
+}
