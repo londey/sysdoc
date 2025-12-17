@@ -23,14 +23,20 @@ pub enum MarkdownBlock {
     /// Contains a vector of text runs with various formatting applied
     Paragraph(Vec<TextRun>),
 
-    /// An image reference
+    /// An image reference with metadata
     Image {
-        /// Path to the image file (relative to document root)
+        /// Path to the image file (relative to document root, as written in markdown)
         path: PathBuf,
+        /// Absolute path to the image file
+        absolute_path: PathBuf,
         /// Alternative text for the image (for accessibility)
         alt_text: String,
         /// Optional title text displayed on hover
         title: String,
+        /// Image format (png, jpg, svg, etc.)
+        format: super::image::ImageFormat,
+        /// Whether the image file exists on disk
+        exists: bool,
     },
 
     /// A code block

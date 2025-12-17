@@ -4,7 +4,7 @@
 //! and transforming them into a unified, hierarchical document structure
 //! ready for export.
 
-use crate::source_model::{Alignment, ImageSource, SectionNumber, TableSource};
+use crate::source_model::{Alignment, SectionNumber, TableSource};
 use std::path::PathBuf;
 
 /// Code block kind (for unified document model)
@@ -23,8 +23,6 @@ pub struct UnifiedDocument {
     pub root: PathBuf,
     /// Hierarchical sections of the document
     pub sections: Vec<DocumentSection>,
-    /// All images used in the document
-    pub images: Vec<ImageSource>,
     /// All tables used in the document
     pub tables: Vec<TableSource>,
 }
@@ -37,13 +35,12 @@ impl UnifiedDocument {
     /// * `root` - Root directory path of the document source
     ///
     /// # Returns
-    /// * `UnifiedDocument` - A new empty unified document with no sections, images, or tables
+    /// * `UnifiedDocument` - A new empty unified document with no sections or tables
     pub fn new(metadata: DocumentMetadata, root: PathBuf) -> Self {
         Self {
             metadata,
             root,
             sections: Vec::new(),
-            images: Vec::new(),
             tables: Vec::new(),
         }
     }
@@ -59,9 +56,9 @@ impl UnifiedDocument {
     /// Get the total number of images
     ///
     /// # Returns
-    /// * `usize` - Total number of images in the document
+    /// * `usize` - Total number of images embedded in all sections
     pub fn image_count(&self) -> usize {
-        self.images.len()
+        self.sections.iter().map(|s| s.image_count()).sum()
     }
 
     /// Get the total number of tables
@@ -131,6 +128,16 @@ impl DocumentSection {
     pub fn word_count(&self) -> usize {
         let own_count: usize = self.content.iter().map(|block| block.word_count()).sum();
         let subsection_count: usize = self.subsections.iter().map(|s| s.word_count()).sum();
+        own_count + subsection_count
+    }
+
+    /// Get the image count for this section and all subsections
+    ///
+    /// # Returns
+    /// * `usize` - Total number of images in this section and all nested subsections
+    pub fn image_count(&self) -> usize {
+        let own_count: usize = self.content.iter().map(|block| block.image_count()).sum();
+        let subsection_count: usize = self.subsections.iter().map(|s| s.image_count()).sum();
         own_count + subsection_count
     }
 
@@ -231,6 +238,35 @@ impl ContentBlock {
             ContentBlock::Rule | ContentBlock::Html(_) => 0,
         }
     }
+
+    /// Get the image count for this content block
+    ///
+    /// # Returns
+    /// * `usize` - Number of images in this content block (1 for Image, 0 for others, recursive for nested blocks)
+    pub fn image_count(&self) -> usize {
+        match self {
+            ContentBlock::Paragraph(inlines) => inlines.iter().map(|i| i.image_count()).sum(),
+            ContentBlock::Heading { content, .. } => content.iter().map(|i| i.image_count()).sum(),
+            ContentBlock::BlockQuote(blocks) => blocks.iter().map(|b| b.image_count()).sum(),
+            ContentBlock::List { items, .. } => items.iter().map(|i| i.image_count()).sum(),
+            ContentBlock::Table { headers, rows, .. } => {
+                let header_count: usize = headers
+                    .iter()
+                    .flat_map(|h| h.iter().map(|i| i.image_count()))
+                    .sum();
+                let row_count: usize = rows
+                    .iter()
+                    .flat_map(|r| r.iter().flat_map(|c| c.iter().map(|i| i.image_count())))
+                    .sum();
+                header_count + row_count
+            }
+            ContentBlock::Image { .. } => 1,
+            ContentBlock::CodeBlock { .. }
+            | ContentBlock::CsvTable { .. }
+            | ContentBlock::Rule
+            | ContentBlock::Html(_) => 0,
+        }
+    }
 }
 
 /// An item in a list
@@ -249,6 +285,14 @@ impl ListItem {
     /// * `usize` - Word count for all content blocks in this list item
     pub fn word_count(&self) -> usize {
         self.content.iter().map(|b| b.word_count()).sum()
+    }
+
+    /// Get the image count for this list item
+    ///
+    /// # Returns
+    /// * `usize` - Total number of images in all content blocks in this list item
+    pub fn image_count(&self) -> usize {
+        self.content.iter().map(|b| b.image_count()).sum()
     }
 }
 
@@ -307,6 +351,28 @@ impl InlineContent {
             | InlineContent::Html(_) => 0,
         }
     }
+
+    /// Get the image count for this inline content
+    ///
+    /// # Returns
+    /// * `usize` - Number of images (1 for Image, 0 for others, recursive for nested content)
+    pub fn image_count(&self) -> usize {
+        match self {
+            InlineContent::Emphasis(content)
+            | InlineContent::Strong(content)
+            | InlineContent::Strikethrough(content) => {
+                content.iter().map(|i| i.image_count()).sum()
+            }
+            InlineContent::Link { content, .. } => content.iter().map(|i| i.image_count()).sum(),
+            InlineContent::Image { .. } => 1,
+            InlineContent::Text(_)
+            | InlineContent::Code(_)
+            | InlineContent::SoftBreak
+            | InlineContent::HardBreak
+            | InlineContent::FootnoteReference(_)
+            | InlineContent::Html(_) => 0,
+        }
+    }
 }
 
 /// Builder for constructing a UnifiedDocument from source models
@@ -314,7 +380,6 @@ pub struct DocumentBuilder {
     metadata: DocumentMetadata,
     root: PathBuf,
     sections: Vec<DocumentSection>,
-    images: Vec<ImageSource>,
     tables: Vec<TableSource>,
 }
 
@@ -326,13 +391,12 @@ impl DocumentBuilder {
     /// * `root` - Root directory path of the document source
     ///
     /// # Returns
-    /// * `DocumentBuilder` - A new builder with empty sections, images, and tables
+    /// * `DocumentBuilder` - A new builder with empty sections and tables
     pub fn new(metadata: DocumentMetadata, root: PathBuf) -> Self {
         Self {
             metadata,
             root,
             sections: Vec::new(),
-            images: Vec::new(),
             tables: Vec::new(),
         }
     }
@@ -343,14 +407,6 @@ impl DocumentBuilder {
     /// * `section` - Document section to add
     pub fn add_section(&mut self, section: DocumentSection) {
         self.sections.push(section);
-    }
-
-    /// Add an image to the document
-    ///
-    /// # Parameters
-    /// * `image` - Image source to add
-    pub fn add_image(&mut self, image: ImageSource) {
-        self.images.push(image);
     }
 
     /// Add a table to the document
@@ -370,7 +426,6 @@ impl DocumentBuilder {
             metadata: self.metadata,
             root: self.root,
             sections: self.sections,
-            images: self.images,
             tables: self.tables,
         }
     }

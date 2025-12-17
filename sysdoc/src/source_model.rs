@@ -21,7 +21,6 @@ mod validation;
 // Re-export public types
 pub use blocks::MarkdownBlock;
 pub use error::SourceModelError;
-pub use image::{ImageFormat, ImageSource};
 pub use markdown_source::{MarkdownSection, MarkdownSource};
 pub use section_number::SectionNumber;
 pub use table::TableSource;
@@ -39,9 +38,6 @@ pub struct SourceModel {
 
     /// All markdown source files, ordered by discovery (not sorted yet)
     pub markdown_files: Vec<MarkdownSource>,
-
-    /// All image files referenced in the markdown
-    pub image_files: Vec<ImageSource>,
 
     /// All CSV table files referenced in the markdown
     pub table_files: Vec<TableSource>,
@@ -61,7 +57,6 @@ impl SourceModel {
             root,
             config,
             markdown_files: Vec::new(),
-            image_files: Vec::new(),
             table_files: Vec::new(),
         }
     }
@@ -106,17 +101,14 @@ impl SourceModel {
         section
             .content
             .iter()
-            .filter_map(|block| {
-                if let MarkdownBlock::Image { path, .. } = block {
-                    Some(path)
-                } else {
-                    None
+            .filter_map(|block| match block {
+                MarkdownBlock::Image { path, exists, .. } if !exists => {
+                    Some(ValidationError::MissingImage {
+                        referenced_in: md_file.path.clone(),
+                        image_path: path.clone(),
+                    })
                 }
-            })
-            .filter(|img_path| !self.image_files.iter().any(|img| &img.path == *img_path))
-            .map(|img_path| ValidationError::MissingImage {
-                referenced_in: md_file.path.clone(),
-                image_path: img_path.clone(),
+                _ => None,
             })
             .collect()
     }

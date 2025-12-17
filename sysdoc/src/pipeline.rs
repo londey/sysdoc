@@ -6,10 +6,7 @@
 //! 3. **Export**: Generate output formats (docx, markdown, etc.)
 
 use crate::document_config::DocumentConfig;
-use crate::source_model::{
-    ImageFormat, ImageSource, MarkdownBlock, MarkdownSource, SectionNumber, SourceModel,
-    TableSource,
-};
+use crate::source_model::{MarkdownSource, SectionNumber, SourceModel, TableSource};
 use crate::unified_document::{
     ContentBlock, DocumentBuilder, DocumentMetadata, DocumentSection, InlineContent, Person,
     UnifiedDocument,
@@ -63,35 +60,8 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
 
     model.markdown_files = markdown_files?;
 
-    // Discover all referenced images
-    let image_paths: std::collections::HashSet<_> = model
-        .markdown_files
-        .iter()
-        .flat_map(|md_file| &md_file.sections)
-        .flat_map(|section| &section.content)
-        .filter_map(|block| {
-            if let MarkdownBlock::Image { path, .. } = block {
-                Some(path.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    // Load image metadata
-    for path in image_paths {
-        let absolute_path = root.join(&path);
-        if absolute_path.exists() {
-            let format = ImageFormat::from_path(&path);
-            model.image_files.push(ImageSource {
-                path,
-                absolute_path,
-                format,
-                loaded: false,
-                data: None,
-            });
-        }
-    }
+    // Note: Images are now embedded directly in MarkdownBlock::Image with metadata
+    // resolved during parsing, so we don't need to collect them separately
 
     // Discover all referenced tables
     let mut table_paths = std::collections::HashSet::new();
@@ -160,7 +130,7 @@ fn parse_markdown_file(path: &Path, root: &Path) -> Result<MarkdownSource, Parse
 
     // Parse the markdown content into sections
     source
-        .parse()
+        .parse(root)
         .map_err(|e| ParseError::SourceModelError(path.to_path_buf(), e))?;
 
     Ok(source)
@@ -243,10 +213,8 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
         builder.add_section(section);
     }
 
-    // Add images
-    for image in source.image_files {
-        builder.add_image(image);
-    }
+    // Note: Images are now embedded in MarkdownBlock::Image within sections
+    // so we don't need to add them separately
 
     // Add tables
     for table in source.table_files {
