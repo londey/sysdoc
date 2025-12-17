@@ -11,46 +11,71 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub enum MarkdownBlock {
     /// A heading with level and formatted text
-    Heading { level: usize, runs: Vec<TextRun> },
+    Heading {
+        /// Heading level (1 = h1, 2 = h2, etc.)
+        level: usize,
+        /// Formatted text runs comprising the heading content
+        runs: Vec<TextRun>,
+    },
 
     /// A paragraph of formatted text
+    ///
+    /// Contains a vector of text runs with various formatting applied
     Paragraph(Vec<TextRun>),
 
     /// An image reference
     Image {
+        /// Path to the image file (relative to document root)
         path: PathBuf,
+        /// Alternative text for the image (for accessibility)
         alt_text: String,
+        /// Optional title text displayed on hover
         title: String,
     },
 
     /// A code block
     CodeBlock {
+        /// Programming language for syntax highlighting (e.g., "rust", "python")
         language: Option<String>,
+        /// Raw code content
         code: String,
+        /// Whether this is a fenced code block (```) or indented code block
         fenced: bool,
     },
 
     /// A block quote containing other blocks
+    ///
+    /// Nested blocks that are quoted (typically rendered with left border/indentation)
     BlockQuote(Vec<MarkdownBlock>),
 
     /// An ordered or unordered list
     List {
-        /// Starting number for ordered lists, None for unordered
+        /// Starting number for ordered lists (e.g., Some(1)), None for unordered lists
         start: Option<u64>,
+        /// List items, each containing nested blocks
         items: Vec<ListItem>,
     },
 
-    /// A table
+    /// A markdown table (not a CSV file)
+    ///
+    /// Represents tables defined using markdown pipe syntax
     Table {
+        /// Column alignment specifications (left, center, right, none)
         alignments: Vec<Alignment>,
+        /// Header row cells, each cell containing formatted text runs
         headers: Vec<Vec<TextRun>>,
+        /// Data rows, where each row contains cells, and each cell contains text runs
         rows: Vec<Vec<Vec<TextRun>>>,
     },
 
-    /// A horizontal rule
+    /// A horizontal rule (thematic break)
+    ///
+    /// Typically rendered as a horizontal line (created with ---, ***, or ___)
     Rule,
 
     /// HTML content (preserved as-is)
+    ///
+    /// Raw HTML that should be passed through without modification
     Html(String),
 }
 
