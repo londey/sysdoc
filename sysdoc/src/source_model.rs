@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 // Submodules
 mod blocks;
+mod error;
 mod image;
 mod markdown_source;
 mod parser;
@@ -19,6 +20,7 @@ mod validation;
 
 // Re-export public types
 pub use blocks::MarkdownBlock;
+pub use error::SourceModelError;
 pub use image::{ImageFormat, ImageSource};
 pub use markdown_source::{MarkdownSection, MarkdownSource};
 pub use section_number::SectionNumber;

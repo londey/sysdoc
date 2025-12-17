@@ -3,6 +3,7 @@
 //! Converts pulldown-cmark's event stream into structured blocks with formatted text runs.
 
 use super::blocks::{ListItem, MarkdownBlock};
+use super::error::SourceModelError;
 use super::markdown_source::MarkdownSection;
 use super::text_run::{TextFormatting, TextRun};
 use super::types::Alignment;
@@ -98,8 +99,14 @@ impl MarkdownParser {
     /// * `content` - Raw markdown content to parse
     ///
     /// # Returns
-    /// * `(Vec<MarkdownSection>, Vec<PathBuf>)` - Tuple of parsed sections and CSV table references
-    pub fn parse(content: &str) -> (Vec<MarkdownSection>, Vec<PathBuf>) {
+    /// * `Ok((Vec<MarkdownSection>, Vec<PathBuf>))` - Parsed sections and CSV table references
+    /// * `Err(SourceModelError)` - Validation error (e.g., missing or invalid h1 heading)
+    ///
+    /// # Validation Rules
+    /// * Source markdown must contain at least one heading
+    /// * The first heading must be level 1 (h1)
+    /// * Only the first heading may be level 1 (all subsequent headings must be h2+)
+    pub fn parse(content: &str) -> Result<(Vec<MarkdownSection>, Vec<PathBuf>), SourceModelError> {
         let mut parser = Self::new();
         let md_parser = pulldown_cmark::Parser::new(content);
 
@@ -110,7 +117,49 @@ impl MarkdownParser {
         // Finalize any remaining content
         parser.finalize();
 
-        (parser.sections, parser.table_refs)
+        // Validate heading structure
+        Self::validate_heading_structure(&parser.sections)?;
+
+        Ok((parser.sections, parser.table_refs))
+    }
+
+    /// Validate that the heading structure follows sysdoc requirements
+    ///
+    /// # Parameters
+    /// * `sections` - Parsed sections to validate
+    ///
+    /// # Returns
+    /// * `Ok(())` - Heading structure is valid
+    /// * `Err(SourceModelError)` - Validation failed
+    ///
+    /// # Validation Rules
+    /// * At least one section must exist (with h1 heading)
+    /// * The first section must have heading level 1
+    /// * All subsequent sections must NOT have heading level 1
+    fn validate_heading_structure(sections: &[MarkdownSection]) -> Result<(), SourceModelError> {
+        // Rule 1: Must have at least one heading
+        if sections.is_empty() {
+            return Err(SourceModelError::NoHeadingFound);
+        }
+
+        // Rule 2: First heading must be level 1
+        if sections[0].heading_level != 1 {
+            return Err(SourceModelError::FirstHeadingNotLevel1 {
+                actual_level: sections[0].heading_level,
+            });
+        }
+
+        // Rule 3: Count h1 headings (should be exactly 1)
+        let h1_count = sections
+            .iter()
+            .filter(|section| section.heading_level == 1)
+            .count();
+
+        if h1_count > 1 {
+            return Err(SourceModelError::MultipleLevel1Headings { count: h1_count });
+        }
+
+        Ok(())
     }
 
     /// Process a single markdown event
@@ -557,15 +606,9 @@ impl MarkdownParser {
                 .push(Self::finalize_section_static(section, table_refs));
         }
 
-        // If there are blocks but no sections, create a default section
-        if !self.current_blocks.is_empty() && self.sections.is_empty() {
-            self.sections.push(MarkdownSection {
-                heading_level: 1,
-                heading_text: String::new(),
-                content: std::mem::take(&mut self.current_blocks),
-                table_refs: std::mem::take(&mut self.table_refs),
-            });
-        }
+        // Note: We do NOT create default sections for content without headings.
+        // sysdoc requires all source markdown files to have an explicit h1 heading.
+        // Content without headings will fail validation.
     }
 
     /// Convert a section builder into a MarkdownSection (static version)
@@ -805,7 +848,7 @@ More text after.
 "#;
 
         // Act: Parse with our parser
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Verify section structure
         assert_eq!(sections.len(), 1);
@@ -825,13 +868,150 @@ More text after.
     // Unit tests for MarkdownParser::parse
     // ============================================================================
 
+    // ============================================================================
+    // Validation tests - heading structure
+    // ============================================================================
+
     #[test]
-    fn test_parse_simple_paragraph() {
-        // Arrange: Simple text paragraph
-        let markdown = "This is a simple paragraph.";
+    fn test_parse_valid_single_h1() {
+        // Arrange: Valid markdown with single h1
+        let markdown = "# Main Heading\n\nContent here.";
 
         // Act: Parse the markdown
-        let (sections, table_refs) = MarkdownParser::parse(markdown);
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should succeed
+        assert!(result.is_ok());
+        let (sections, _) = result.unwrap();
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].heading_level, 1);
+    }
+
+    #[test]
+    fn test_parse_error_no_heading() {
+        // Arrange: Markdown with no headings
+        let markdown = "Just a paragraph with no headings.";
+
+        // Act: Parse the markdown
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should fail with NoHeadingFound error
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), SourceModelError::NoHeadingFound);
+    }
+
+    #[test]
+    fn test_parse_error_first_heading_not_h1() {
+        // Arrange: Markdown where first heading is h2
+        let markdown = "## Second Level Heading\n\nContent here.";
+
+        // Act: Parse the markdown
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should fail with FirstHeadingNotLevel1 error
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SourceModelError::FirstHeadingNotLevel1 { actual_level } => {
+                assert_eq!(actual_level, 2);
+            }
+            _ => panic!("Expected FirstHeadingNotLevel1 error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_multiple_h1_headings() {
+        // Arrange: Markdown with multiple h1 headings
+        let markdown = r#"# First Heading
+
+Content 1
+
+# Second Heading
+
+Content 2"#;
+
+        // Act: Parse the markdown
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should fail with MultipleLevel1Headings error
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SourceModelError::MultipleLevel1Headings { count } => {
+                assert_eq!(count, 2);
+            }
+            _ => panic!("Expected MultipleLevel1Headings error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_valid_h1_with_h2_subsections() {
+        // Arrange: Valid markdown with h1 followed by h2 subsections
+        let markdown = r#"# Main Heading
+
+Introduction content.
+
+## Subsection 1
+
+Content 1
+
+## Subsection 2
+
+Content 2"#;
+
+        // Act: Parse the markdown
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should succeed with 3 sections
+        assert!(result.is_ok());
+        let (sections, _) = result.unwrap();
+        assert_eq!(sections.len(), 3);
+        assert_eq!(sections[0].heading_level, 1);
+        assert_eq!(sections[1].heading_level, 2);
+        assert_eq!(sections[2].heading_level, 2);
+    }
+
+    #[test]
+    fn test_parse_valid_deep_nesting() {
+        // Arrange: Valid markdown with deep heading nesting
+        let markdown = r#"# Main
+
+Content
+
+## Level 2
+
+More content
+
+### Level 3
+
+Deep content
+
+#### Level 4
+
+Very deep"#;
+
+        // Act: Parse the markdown
+        let result = MarkdownParser::parse(markdown);
+
+        // Assert: Should succeed with 4 sections
+        assert!(result.is_ok());
+        let (sections, _) = result.unwrap();
+        assert_eq!(sections.len(), 4);
+        assert_eq!(sections[0].heading_level, 1);
+        assert_eq!(sections[1].heading_level, 2);
+        assert_eq!(sections[2].heading_level, 3);
+        assert_eq!(sections[3].heading_level, 4);
+    }
+
+    // ============================================================================
+    // Existing parser tests (updated to use .unwrap())
+    // ============================================================================
+
+    #[test]
+    fn test_parse_simple_paragraph() {
+        // Arrange: Simple text paragraph with h1
+        let markdown = "# Heading\n\nThis is a simple paragraph.";
+
+        // Act: Parse the markdown
+        let (sections, table_refs) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create one section with one paragraph
         assert_eq!(sections.len(), 1);
@@ -846,10 +1026,14 @@ More text after.
     #[test]
     fn test_parse_multiple_paragraphs() {
         // Arrange: Two paragraphs separated by blank line
-        let markdown = "First paragraph.\n\nSecond paragraph.";
+        let markdown = "# Heading
+
+First paragraph.
+
+Second paragraph.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create one section with two paragraphs
         assert_eq!(sections.len(), 1);
@@ -870,7 +1054,7 @@ More text after.
         let markdown = "# Main Heading\n\nSome content.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create one section with heading
         assert_eq!(sections.len(), 1);
@@ -881,7 +1065,7 @@ More text after.
 
     #[test]
     fn test_parse_multiple_headings_create_sections() {
-        // Arrange: Markdown with three headings
+        // Arrange: Markdown with three headings (one h1, two h2)
         let markdown = r#"# First Heading
 
 Content 1
@@ -890,12 +1074,12 @@ Content 1
 
 Content 2
 
-# Third Heading
+## Third Heading
 
 Content 3"#;
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create three sections
         assert_eq!(sections.len(), 3);
@@ -904,16 +1088,16 @@ Content 3"#;
         assert_eq!(sections[1].heading_text, "Second Heading");
         assert_eq!(sections[1].heading_level, 2);
         assert_eq!(sections[2].heading_text, "Third Heading");
-        assert_eq!(sections[2].heading_level, 1);
+        assert_eq!(sections[2].heading_level, 2);
     }
 
     #[test]
     fn test_parse_unordered_list() {
         // Arrange: Simple unordered list
-        let markdown = "- Item 1\n- Item 2\n- Item 3";
+        let markdown = "# List\n\n- Item 1\n- Item 2\n- Item 3";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create one list block
         assert_eq!(sections.len(), 1);
@@ -931,10 +1115,10 @@ Content 3"#;
     #[test]
     fn test_parse_ordered_list() {
         // Arrange: Ordered list with explicit numbering
-        let markdown = "1. First\n2. Second\n3. Third";
+        let markdown = "# List\n\n1. First\n2. Second\n3. Third";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create ordered list starting at 1
         assert_eq!(sections.len(), 1);
@@ -952,10 +1136,10 @@ Content 3"#;
     #[test]
     fn test_parse_fenced_code_block() {
         // Arrange: Fenced code block with language
-        let markdown = "```rust\nfn main() {\n    println!(\"Hello\");\n}\n```";
+        let markdown = "# Code\n\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Code blocks without headings create a default section
         // But code blocks might not be implemented yet, so check what we got
@@ -987,10 +1171,10 @@ Content 3"#;
     #[test]
     fn test_parse_blockquote() {
         // Arrange: Simple blockquote
-        let markdown = "> This is a quote\n> with multiple lines";
+        let markdown = "# Quote\n\n> This is a quote\n> with multiple lines";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create blockquote block
         assert_eq!(sections.len(), 1);
@@ -1004,10 +1188,10 @@ Content 3"#;
     #[test]
     fn test_parse_horizontal_rule() {
         // Arrange: Horizontal rule between paragraphs
-        let markdown = "Before rule\n\n---\n\nAfter rule";
+        let markdown = "# Rule\n\nBefore rule\n\n---\n\nAfter rule";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create paragraph, rule, paragraph
         assert_eq!(sections.len(), 1);
@@ -1026,10 +1210,10 @@ Content 3"#;
     #[test]
     fn test_parse_bold_text() {
         // Arrange: Paragraph with bold text
-        let markdown = "This is **bold** text.";
+        let markdown = "# Text\n\nThis is **bold** text.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should parse with formatted runs
         assert_eq!(sections.len(), 1);
@@ -1048,10 +1232,10 @@ Content 3"#;
     #[test]
     fn test_parse_italic_text() {
         // Arrange: Paragraph with italic text
-        let markdown = "This is *italic* text.";
+        let markdown = "# Text\n\nThis is *italic* text.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should parse with italic formatting
         assert_eq!(sections.len(), 1);
@@ -1068,10 +1252,10 @@ Content 3"#;
     #[test]
     fn test_parse_inline_code() {
         // Arrange: Paragraph with inline code
-        let markdown = "Use the `println!` macro.";
+        let markdown = "# Code\n\nUse the `println!` macro.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should parse with code formatting
         assert_eq!(sections.len(), 1);
@@ -1088,10 +1272,10 @@ Content 3"#;
     #[test]
     fn test_parse_link() {
         // Arrange: Paragraph with link
-        let markdown = "Visit [Rust](https://rust-lang.org) website.";
+        let markdown = "# Link\n\nVisit [Rust](https://rust-lang.org) website.";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should parse with link formatting
         assert_eq!(sections.len(), 1);
@@ -1112,10 +1296,10 @@ Content 3"#;
     #[test]
     fn test_parse_csv_table_reference() {
         // Arrange: Link to CSV file
-        let markdown = "[Table Data](data.csv)";
+        let markdown = "# Table\n\n[Table Data](data.csv)";
 
         // Act: Parse the markdown
-        let (sections, table_refs) = MarkdownParser::parse(markdown);
+        let (sections, table_refs) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should extract CSV reference
         assert_eq!(sections.len(), 1);
@@ -1138,7 +1322,7 @@ First table: [table1](table1.csv)
 Second table: [table2](table2.csv)"#;
 
         // Act: Parse the markdown
-        let (sections, table_refs) = MarkdownParser::parse(markdown);
+        let (sections, table_refs) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should extract all CSV references
         assert_eq!(sections.len(), 1);
@@ -1159,10 +1343,10 @@ Second table: [table2](table2.csv)"#;
     #[test]
     fn test_parse_image_block() {
         // Arrange: Standalone image
-        let markdown = "![Alt text](image.png)";
+        let markdown = "# Image\n\n![Alt text](image.png)";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should extract image
         assert_eq!(sections.len(), 1);
@@ -1193,27 +1377,28 @@ Second table: [table2](table2.csv)"#;
 
     #[test]
     fn test_parse_empty_content() {
-        // Arrange: Empty string
+        // Arrange: Empty string (this test now expects an error since no heading)
         let markdown = "";
 
         // Act: Parse the markdown
-        let (sections, table_refs) = MarkdownParser::parse(markdown);
+        let result = MarkdownParser::parse(markdown);
 
-        // Assert: Should return empty results
-        assert_eq!(sections.len(), 0);
-        assert_eq!(table_refs.len(), 0);
+        // Assert: Should fail with NoHeadingFound error
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), SourceModelError::NoHeadingFound);
     }
 
     #[test]
     fn test_parse_whitespace_only() {
-        // Arrange: Only whitespace
+        // Arrange: Only whitespace (this test now expects an error since no heading)
         let markdown = "   \n\n   \n";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let result = MarkdownParser::parse(markdown);
 
-        // Assert: Should return empty or minimal sections
-        assert!(sections.is_empty() || sections[0].content.is_empty());
+        // Assert: Should fail with NoHeadingFound error
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), SourceModelError::NoHeadingFound);
     }
 
     #[test]
@@ -1241,7 +1426,7 @@ fn example() {}
 End of document."#;
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create two sections with various blocks
         assert_eq!(sections.len(), 2);
@@ -1254,13 +1439,15 @@ End of document."#;
     #[test]
     fn test_parse_nested_list() {
         // Arrange: List with nested items
-        let markdown = r#"- Item 1
+        let markdown = r#"# List
+
+- Item 1
   - Nested 1a
   - Nested 1b
 - Item 2"#;
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should parse list structure
         assert_eq!(sections.len(), 1);
@@ -1278,10 +1465,10 @@ End of document."#;
     #[test]
     fn test_parse_blockquote_with_content() {
         // Arrange: Blockquote with formatted content
-        let markdown = "> This is **bold** in a quote\n> \n> Second paragraph";
+        let markdown = "# Quote\n\n> This is **bold** in a quote\n> \n> Second paragraph";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should create blockquote with nested blocks
         assert_eq!(sections.len(), 1);
@@ -1297,10 +1484,10 @@ End of document."#;
     #[test]
     fn test_parse_html_content() {
         // Arrange: Raw HTML in markdown
-        let markdown = "<div>HTML content</div>";
+        let markdown = "# HTML\n\n<div>HTML content</div>";
 
         // Act: Parse the markdown
-        let (sections, _) = MarkdownParser::parse(markdown);
+        let (sections, _) = MarkdownParser::parse(markdown).unwrap();
 
         // Assert: Should preserve HTML
         assert_eq!(sections.len(), 1);

@@ -1,6 +1,7 @@
 //! Markdown source file representation
 
 use super::blocks::MarkdownBlock;
+use super::error::SourceModelError;
 use super::section_number::SectionNumber;
 use std::path::PathBuf;
 
@@ -30,12 +31,22 @@ impl MarkdownSource {
     /// Parse the markdown content into sections
     ///
     /// Parses the raw markdown content and populates the sections field
-    /// with structured markdown sections delimited by headings
-    pub fn parse(&mut self) {
-        let (sections, _table_refs) = super::parser::MarkdownParser::parse(&self.raw_content);
+    /// with structured markdown sections delimited by headings.
+    ///
+    /// # Returns
+    /// * `Ok(())` - Successfully parsed markdown
+    /// * `Err(SourceModelError)` - Parse/validation error (e.g., invalid heading structure)
+    ///
+    /// # Validation Rules
+    /// * Source markdown must contain at least one heading
+    /// * The first heading must be level 1 (h1)
+    /// * Only the first heading may be level 1 (all subsequent headings must be h2+)
+    pub fn parse(&mut self) -> Result<(), SourceModelError> {
+        let (sections, _table_refs) = super::parser::MarkdownParser::parse(&self.raw_content)?;
 
         // The parser already integrates table refs into the sections
         self.sections = sections;
+        Ok(())
     }
 }
 

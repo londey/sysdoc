@@ -15,6 +15,7 @@ use crate::unified_document::{
     UnifiedDocument,
 };
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 use walkdir::WalkDir;
 
 #[cfg(feature = "parallel")]
@@ -158,7 +159,9 @@ fn parse_markdown_file(path: &Path, root: &Path) -> Result<MarkdownSource, Parse
     };
 
     // Parse the markdown content into sections
-    source.parse();
+    source
+        .parse()
+        .map_err(|e| ParseError::SourceModelError(path.to_path_buf(), e))?;
 
     Ok(source)
 }
@@ -353,60 +356,36 @@ pub mod export {
 }
 
 /// Parsing errors
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum ParseError {
-    IoError(PathBuf, std::io::Error),
+    #[error("IO error reading {path}: {source}", path = .0.display(), source = .1)]
+    IoError(PathBuf, #[source] std::io::Error),
+
+    #[error("Invalid filename format: {path}", path = .0.display())]
     InvalidFilename(PathBuf),
+
+    #[error("Invalid section number in: {path}", path = .0.display())]
     InvalidSectionNumber(PathBuf),
-    ValidationError(crate::source_model::ValidationError),
-    ConfigError(PathBuf, Box<crate::document_config::DocumentConfigError>),
-}
 
-impl From<crate::source_model::ValidationError> for ParseError {
-    fn from(err: crate::source_model::ValidationError) -> Self {
-        ParseError::ValidationError(err)
-    }
-}
+    #[error("Validation error: {0}")]
+    ValidationError(#[from] crate::source_model::ValidationError),
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::IoError(path, e) => {
-                write!(f, "IO error reading {}: {}", path.display(), e)
-            }
-            ParseError::InvalidFilename(path) => {
-                write!(f, "Invalid filename format: {}", path.display())
-            }
-            ParseError::InvalidSectionNumber(path) => {
-                write!(f, "Invalid section number in: {}", path.display())
-            }
-            ParseError::ValidationError(e) => write!(f, "Validation error: {}", e),
-            ParseError::ConfigError(path, e) => {
-                write!(f, "Config error loading {}: {}", path.display(), e)
-            }
-        }
-    }
-}
+    #[error("Error parsing {path}: {source}", path = .0.display(), source = .1)]
+    SourceModelError(PathBuf, #[source] crate::source_model::SourceModelError),
 
-impl std::error::Error for ParseError {}
+    #[error("Config error loading {path}: {source}", path = .0.display(), source = .1)]
+    ConfigError(
+        PathBuf,
+        #[source] Box<crate::document_config::DocumentConfigError>,
+    ),
+}
 
 /// Transformation errors
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum TransformError {
+    #[error("Invalid document structure: {0}")]
     InvalidStructure(String),
 }
-
-impl std::fmt::Display for TransformError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TransformError::InvalidStructure(msg) => {
-                write!(f, "Invalid document structure: {}", msg)
-            }
-        }
-    }
-}
-
-impl std::error::Error for TransformError {}
 
 #[cfg(test)]
 mod tests {
