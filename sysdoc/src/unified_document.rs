@@ -4,10 +4,15 @@
 //! and transforming them into a unified, hierarchical document structure
 //! ready for export.
 
-use crate::source_model::{
-    Alignment, CodeBlockKind, ImageSource, MarkdownContent, SectionNumber, TableSource,
-};
+use crate::source_model::{Alignment, ImageSource, SectionNumber, TableSource};
 use std::path::PathBuf;
+
+/// Code block kind (for unified document model)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodeBlockKind {
+    Indented,
+    Fenced,
+}
 
 /// The unified document model ready for export
 #[derive(Debug)]
@@ -321,62 +326,19 @@ impl DocumentBuilder {
     }
 }
 
-/// Transformer for converting MarkdownContent to ContentBlock/InlineContent
-pub struct ContentTransformer;
-
-impl ContentTransformer {
-    /// Transform a sequence of MarkdownContent into ContentBlocks
-    pub fn transform(content: &[MarkdownContent]) -> Vec<ContentBlock> {
-        // This is a simplified implementation - the actual transformation
-        // would need to handle the tree structure of the markdown events
-        let mut blocks = Vec::new();
-        let mut current_paragraph: Vec<InlineContent> = Vec::new();
-
-        for item in content {
-            Self::process_content_item(item, &mut blocks, &mut current_paragraph);
-        }
-
-        // Don't forget the last paragraph
-        Self::flush_paragraph(&mut blocks, &mut current_paragraph);
-
-        blocks
-    }
-
-    /// Process a single content item
-    fn process_content_item(
-        item: &MarkdownContent,
-        blocks: &mut Vec<ContentBlock>,
-        current_paragraph: &mut Vec<InlineContent>,
-    ) {
-        match item {
-            MarkdownContent::Text(text) => {
-                current_paragraph.push(InlineContent::Text(text.clone()));
-            }
-            MarkdownContent::SoftBreak => {
-                current_paragraph.push(InlineContent::SoftBreak);
-            }
-            MarkdownContent::HardBreak => {
-                current_paragraph.push(InlineContent::HardBreak);
-            }
-            MarkdownContent::Rule => {
-                Self::flush_paragraph(blocks, current_paragraph);
-                blocks.push(ContentBlock::Rule);
-            }
-            _ => {
-                // For other content types, we'd need more sophisticated
-                // state machine logic to properly handle the tree structure
-            }
-        }
-    }
-
-    /// Flush the current paragraph to blocks if not empty
-    fn flush_paragraph(blocks: &mut Vec<ContentBlock>, current_paragraph: &mut Vec<InlineContent>) {
-        if !current_paragraph.is_empty() {
-            blocks.push(ContentBlock::Paragraph(current_paragraph.clone()));
-            current_paragraph.clear();
-        }
-    }
-}
+// TODO: Rewrite ContentTransformer to work with new Block structure
+// The new source model uses Block with TextRun instead of the old MarkdownContent
+//
+// /// Transformer for converting source Blocks to ContentBlock/InlineContent
+// pub struct ContentTransformer;
+//
+// impl ContentTransformer {
+//     /// Transform a sequence of source Blocks into ContentBlocks
+//     pub fn transform(blocks: &[SourceBlock]) -> Vec<ContentBlock> {
+//         // Implementation needed to convert from SourceBlock to ContentBlock
+//         Vec::new()
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

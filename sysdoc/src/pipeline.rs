@@ -7,7 +7,8 @@
 
 use crate::document_config::DocumentConfig;
 use crate::source_model::{
-    ImageFormat, ImageSource, MarkdownSource, SectionNumber, SourceModel, TableSource,
+    ImageFormat, ImageSource, MarkdownBlock, MarkdownSource, SectionNumber, SourceModel,
+    TableSource,
 };
 use crate::unified_document::{
     ContentBlock, DocumentBuilder, DocumentMetadata, DocumentSection, InlineContent, Person,
@@ -60,9 +61,9 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
         .iter()
         .flat_map(|md_file| &md_file.sections)
         .flat_map(|section| &section.content)
-        .filter_map(|content| {
-            if let crate::source_model::MarkdownContent::Image(img_ref) = content {
-                Some(img_ref.path.clone())
+        .filter_map(|block| {
+            if let MarkdownBlock::Image { path, .. } = block {
+                Some(path.clone())
             } else {
                 None
             }
