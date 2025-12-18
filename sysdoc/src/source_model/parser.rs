@@ -675,21 +675,16 @@ impl MarkdownParser {
     /// Convert a section builder into a MarkdownSection with calculated section number
     ///
     /// Calculates the section number by combining:
-    /// 1. The file's section number (with .00 stripped if present)
-    /// 2. Incremental counters for each heading level (1-indexed)
+    /// 1. The file's section number (with .00 stripped if present) - used directly for h1
+    /// 2. For h2+, incremental counters are appended to the base number
     ///
-    /// For example, if file is "01.02.00_intro.md" and this is the 3rd h2 heading,
-    /// the section number would be [1, 2, 3] (01.02 from file + 3 from counter)
+    /// The h1 heading uses the file section number directly because the filename already
+    /// encodes the section number. For example:
+    /// - File "01.00_scope.md" with h1 → section 1
+    /// - File "01.02_overview.md" with h1 → section 1.2
+    /// - File "01.02_overview.md" with h2 (first) → section 1.2.1
+    /// - File "01.02_overview.md" with h2 (second) → section 1.2.2
     fn finalize_section(&mut self, section: SectionBuilder) -> MarkdownSection {
-        // Increment counter for this heading level
-        let level_index = section.level.saturating_sub(1).min(5); // h1=0, h2=1, etc.
-        self.heading_counters[level_index] += 1;
-
-        // Reset all deeper level counters
-        for i in (level_index + 1)..6 {
-            self.heading_counters[i] = 0;
-        }
-
         // Build section number
         // Start with file section number (stripping .00 if present)
         let base_number = if self.file_section_number.is_parent_marker() {
@@ -698,17 +693,32 @@ impl MarkdownParser {
             self.file_section_number.clone()
         };
 
-        // Add heading level counters (only up to current level)
-        let additional: Vec<u32> = self.heading_counters[..=level_index].to_vec();
-        let section_number = base_number.extend(&additional).unwrap_or_else(|err| {
-            // Log warning when depth is exceeded
-            log::warn!(
-                "Section number depth exceeded for heading '{}': {}. Using fallback.",
-                section.heading_text,
-                err
-            );
-            base_number.clone()
-        });
+        let section_number = if section.level == 1 {
+            // For h1, use the file section number directly
+            // The filename already encodes the section number
+            base_number
+        } else {
+            // For h2+, increment counter for this level and add to base
+            let level_index = section.level.saturating_sub(1).min(5); // h2=1, h3=2, etc.
+            self.heading_counters[level_index] += 1;
+
+            // Reset all deeper level counters
+            for i in (level_index + 1)..6 {
+                self.heading_counters[i] = 0;
+            }
+
+            // Add heading level counters (from h2 onwards, skip h1 counter at index 0)
+            let additional: Vec<u32> = self.heading_counters[1..=level_index].to_vec();
+            base_number.extend(&additional).unwrap_or_else(|err| {
+                // Log warning when depth is exceeded
+                log::warn!(
+                    "Section number depth exceeded for heading '{}': {}. Using fallback.",
+                    section.heading_text,
+                    err
+                );
+                base_number.clone()
+            })
+        };
 
         MarkdownSection {
             heading_level: section.level,
@@ -940,9 +950,9 @@ mod tests {
         // Act: Parse the markdown
         let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
 
-        // Assert: Section number should be [1, 2, 1] (file 01.02 + first h1)
+        // Assert: h1 uses file section number directly (filename encodes section number)
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].section_number.to_string(), "1.2.1");
+        assert_eq!(sections[0].section_number.to_string(), "1.2");
     }
 
     #[test]
@@ -964,11 +974,11 @@ Content 3"#;
         // Act: Parse the markdown
         let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
 
-        // Assert: Check all section numbers
+        // Assert: h1 uses file number directly, h2+ add counters
         assert_eq!(sections.len(), 3);
-        assert_eq!(sections[0].section_number.to_string(), "1.2.1"); // First h1
-        assert_eq!(sections[1].section_number.to_string(), "1.2.1.1"); // First h2
-        assert_eq!(sections[2].section_number.to_string(), "1.2.1.2"); // Second h2
+        assert_eq!(sections[0].section_number.to_string(), "1.2"); // h1 = file section
+        assert_eq!(sections[1].section_number.to_string(), "1.2.1"); // First h2
+        assert_eq!(sections[2].section_number.to_string(), "1.2.2"); // Second h2
     }
 
     #[test]
@@ -980,9 +990,9 @@ Content 3"#;
         // Act: Parse the markdown
         let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
 
-        // Assert: .00 should be stripped, section number should be [1, 2, 1]
+        // Assert: .00 should be stripped, h1 uses file section number directly
         assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].section_number.to_string(), "1.2.1");
+        assert_eq!(sections[0].section_number.to_string(), "1.2");
     }
 
     #[test]
@@ -1002,19 +1012,19 @@ Content 3"#;
         // Act: Parse the markdown
         let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
 
-        // Assert: Check section numbers for deep nesting
+        // Assert: h1 = file section, h2+ add counters
         assert_eq!(sections.len(), 5);
-        assert_eq!(sections[0].section_number.to_string(), "1.1"); // h1: file [1] + [1]
-        assert_eq!(sections[1].section_number.to_string(), "1.1.1"); // h2: file [1] + [1,1]
-        assert_eq!(sections[2].section_number.to_string(), "1.1.1.1"); // h3: file [1] + [1,1,1]
-        assert_eq!(sections[3].section_number.to_string(), "1.1.1.1.1"); // h4: file [1] + [1,1,1,1]
-        assert_eq!(sections[4].section_number.to_string(), "1.1.1.1.1.1"); // h5: file [1] + [1,1,1,1,1]
+        assert_eq!(sections[0].section_number.to_string(), "1"); // h1 = file section
+        assert_eq!(sections[1].section_number.to_string(), "1.1"); // h2
+        assert_eq!(sections[2].section_number.to_string(), "1.1.1"); // h3
+        assert_eq!(sections[3].section_number.to_string(), "1.1.1.1"); // h4
+        assert_eq!(sections[4].section_number.to_string(), "1.1.1.1.1"); // h5
     }
 
     #[test]
     fn test_section_number_max_depth_enforced() {
-        // Arrange: Attempt to create section numbers that would exceed max depth
-        // File "01.md" (depth 1) with h6 heading would create depth 7 (1 + 6 levels)
+        // Arrange: File "01.02.md" (depth 2) with h6 heading would exceed max depth of 6
+        // h1 = "1.2" (depth 2), h2 = "1.2.1" (depth 3), ..., h6 would need depth 7
         let markdown = r#"# H1
 
 ## H2
@@ -1026,19 +1036,20 @@ Content 3"#;
 ##### H5
 
 ###### H6"#;
-        let file_section = SectionNumber::parse("01").unwrap();
+        let file_section = SectionNumber::parse("01.02").unwrap();
 
         // Act: Parse the markdown
         let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
 
-        // Assert: The h6 section should fall back to base file number when extend fails
-        // This demonstrates depth enforcement
+        // Assert: h6 exceeds max depth and falls back to base file number
         assert_eq!(sections.len(), 6);
-        // First 5 headings should work fine
-        assert_eq!(sections[0].section_number.to_string(), "1.1");
-        assert_eq!(sections[1].section_number.to_string(), "1.1.1");
-        // h6 (6th level) would exceed depth, so it falls back to file number
-        assert_eq!(sections[5].section_number.to_string(), "1");
+        assert_eq!(sections[0].section_number.to_string(), "1.2"); // h1 = file section
+        assert_eq!(sections[1].section_number.to_string(), "1.2.1"); // h2
+        assert_eq!(sections[2].section_number.to_string(), "1.2.1.1"); // h3
+        assert_eq!(sections[3].section_number.to_string(), "1.2.1.1.1"); // h4
+        assert_eq!(sections[4].section_number.to_string(), "1.2.1.1.1.1"); // h5 (depth 6, at max)
+        // h6 would exceed depth, so it falls back to file number
+        assert_eq!(sections[5].section_number.to_string(), "1.2");
     }
 
     #[test]
@@ -1062,12 +1073,12 @@ Content 3"#;
 
         // Assert: Counters should reset when returning to higher level
         assert_eq!(sections.len(), 6);
-        assert_eq!(sections[0].section_number.to_string(), "1.1"); // h1
-        assert_eq!(sections[1].section_number.to_string(), "1.1.1"); // First h2
-        assert_eq!(sections[2].section_number.to_string(), "1.1.1.1"); // First h3
-        assert_eq!(sections[3].section_number.to_string(), "1.1.1.2"); // Second h3
-        assert_eq!(sections[4].section_number.to_string(), "1.1.2"); // Second h2
-        assert_eq!(sections[5].section_number.to_string(), "1.1.2.1"); // h3 counter reset
+        assert_eq!(sections[0].section_number.to_string(), "1"); // h1 = file section
+        assert_eq!(sections[1].section_number.to_string(), "1.1"); // First h2
+        assert_eq!(sections[2].section_number.to_string(), "1.1.1"); // First h3
+        assert_eq!(sections[3].section_number.to_string(), "1.1.2"); // Second h3
+        assert_eq!(sections[4].section_number.to_string(), "1.2"); // Second h2 (h3 counter reset)
+        assert_eq!(sections[5].section_number.to_string(), "1.2.1"); // h3 under second h2
     }
 
     #[test]
