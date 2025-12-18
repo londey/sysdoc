@@ -1,9 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [
-    "sysdoc",
-]
+members = ["sysdoc"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,7 +15,7 @@ pulldown-cmark = "0.13"
 walkdir = "2.5"
 csv = "1.4"
 serde = { version = "1.0.228", features = ["derive"] }
-toml = "0.9"
+toml = "0.9.8"
 log = "0.4.29"
 env_logger = "0.11"
 anyhow = "1.0.100"
