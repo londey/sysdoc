@@ -167,6 +167,13 @@ fn handle_build_command(
         source_model.markdown_files.len()
     );
 
+    // Extract template path from config before consuming source_model
+    let docx_template_path = source_model
+        .config
+        .docx_template_path
+        .as_ref()
+        .map(|p| input.join(p));
+
     // Stage 2: Transform to unified document
     println!("\n[Stage 2/3] Transforming to unified document...");
     let unified_doc = pipeline::transform(source_model)
@@ -188,11 +195,13 @@ fn handle_build_command(
         }
     );
 
-    // TODO: Get template path from config's docx_template_path field
-    let template_path: Option<&std::path::Path> = None;
-
     match format {
         OutputFormat::Docx => {
+            let template_path = docx_template_path.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "DOCX export requires a template. Set 'docx_template_path' in sysdoc.toml"
+                )
+            })?;
             pipeline::export::to_docx(&unified_doc, template_path, &output)
                 .with_context(|| format!("Failed to export DOCX to {}", output.display()))?;
             println!("✓ Successfully wrote: {}", output.display());

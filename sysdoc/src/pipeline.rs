@@ -378,8 +378,28 @@ fn build_section_hierarchy(
 /// Stage 3: Export unified document to various formats
 pub mod export {
     use crate::unified_document::UnifiedDocument;
-    use docx_rust::{document::Paragraph, Docx, DocxFile};
+    use docx_rust::{document::Paragraph, formatting::ParagraphProperty, Docx, DocxFile};
     use std::path::Path;
+
+    /// Get the Word built-in heading style ID for a given heading level
+    ///
+    /// Maps heading levels 1-9 to Word's built-in style IDs "Heading1" through "Heading9".
+    /// Levels outside this range are clamped to the valid range.
+    fn heading_style_id(level: usize) -> &'static str {
+        match level {
+            1 => "Heading1",
+            2 => "Heading2",
+            3 => "Heading3",
+            4 => "Heading4",
+            5 => "Heading5",
+            6 => "Heading6",
+            7 => "Heading7",
+            8 => "Heading8",
+            9 => "Heading9",
+            _ if level < 1 => "Heading1",
+            _ => "Heading9",
+        }
+    }
 
     /// Export to aggregated markdown file
     ///
@@ -399,7 +419,7 @@ pub mod export {
     ///
     /// # Parameters
     /// * `doc` - The unified document to export
-    /// * `template_path` - Optional path to a .docx template file to use as base
+    /// * `template_path` - Path to a .docx template file containing style definitions
     /// * `output_path` - Path where the .docx file will be written
     ///
     /// # Returns
@@ -407,11 +427,12 @@ pub mod export {
     /// * `Err(ExportError)` - Error during export (IO, format, or docx-rust errors)
     ///
     /// # Notes
-    /// If a template is provided, it will be read and sections will be appended to it.
-    /// Otherwise, a new document will be created from scratch.
+    /// A template is required because it provides the style definitions (Heading1, Heading2, etc.)
+    /// that the exported document references. Without a template, the styles would not render
+    /// correctly in Word.
     pub fn to_docx(
         doc: &UnifiedDocument,
-        template_path: Option<&Path>,
+        template_path: &Path,
         output_path: &Path,
     ) -> Result<(), ExportError> {
         // Create output directory if it doesn't exist
@@ -422,26 +443,13 @@ pub mod export {
         // Pre-collect all heading strings so they have a stable lifetime
         let heading_strings = collect_all_headings(&doc.sections);
 
-        // Note: docx-rust uses lifetime references, so we need to keep docx_file alive
-        // for the entire duration that we're working with the parsed Docx
-        let _docx_file_holder: Option<DocxFile>;
-        let mut docx = if let Some(template) = template_path {
-            // Read existing template file
-            log::info!("Reading template from: {}", template.display());
-            let docx_file = DocxFile::from_file(template)
-                .map_err(|e| ExportError::FormatError(format!("Failed to read template: {}", e)))?;
-            _docx_file_holder = Some(docx_file);
-            _docx_file_holder
-                .as_ref()
-                .unwrap()
-                .parse()
-                .map_err(|e| ExportError::FormatError(format!("Failed to parse template: {}", e)))?
-        } else {
-            // Create new document from scratch
-            log::info!("Creating new DOCX document from scratch");
-            _docx_file_holder = None;
-            Docx::default()
-        };
+        // Read the template file - required for style definitions
+        log::info!("Reading template from: {}", template_path.display());
+        let docx_file = DocxFile::from_file(template_path)
+            .map_err(|e| ExportError::FormatError(format!("Failed to read template: {}", e)))?;
+        let mut docx = docx_file
+            .parse()
+            .map_err(|e| ExportError::FormatError(format!("Failed to parse template: {}", e)))?;
 
         // TODO: Add custom properties for metadata when docx-rust supports it
         // For now, we can only add content
@@ -485,9 +493,11 @@ pub mod export {
         let heading_ref = heading_strings[*heading_index].as_str();
         *heading_index += 1;
 
-        // TODO: Set paragraph style to Heading1-6 based on section.heading_level
-        // The docx-rust API for setting styles is not well documented yet
-        let para = Paragraph::default().push_text(heading_ref);
+        // Apply Word's built-in heading style based on the section's heading level
+        let style_id = heading_style_id(section.heading_level);
+        let para = Paragraph::default()
+            .property(ParagraphProperty::default().style_id(style_id))
+            .push_text(heading_ref);
         docx.document.push(para);
 
         // TODO: Add section content blocks once ContentBlock -> docx conversion is implemented
