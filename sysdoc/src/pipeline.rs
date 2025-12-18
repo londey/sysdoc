@@ -34,13 +34,26 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
 
     let mut model = SourceModel::new(root.to_path_buf(), config);
 
-    // Discover all markdown files
+    // Discover all markdown files with section numbering
     let markdown_paths: Vec<PathBuf> = WalkDir::new(root)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| {
-            e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("md")
+            if !e.path().is_file() {
+                return false;
+            }
+            if e.path().extension().and_then(|s| s.to_str()) != Some("md") {
+                return false;
+            }
+            // Only include markdown files that match the section numbering pattern (XX.YY_name.md)
+            if let Some(filename) = e.path().file_stem().and_then(|s| s.to_str()) {
+                // Check if filename starts with digits followed by a dot (e.g., "01." or "01.02")
+                filename.chars().next().is_some_and(|c| c.is_ascii_digit())
+                    && filename.contains('_')
+            } else {
+                false
+            }
         })
         .map(|e| e.path().to_path_buf())
         .collect();
@@ -363,6 +376,7 @@ fn build_section_hierarchy(
 /// Stage 3: Export unified document to various formats
 pub mod export {
     use crate::unified_document::UnifiedDocument;
+    use docx_rust::{document::Paragraph, Docx, DocxFile};
     use std::path::Path;
 
     /// Export to aggregated markdown file
@@ -382,15 +396,111 @@ pub mod export {
     /// Export to Microsoft Word (.docx)
     ///
     /// # Parameters
-    /// * `_doc` - The unified document to export
-    /// * `_output_path` - Path where the .docx file will be written
+    /// * `doc` - The unified document to export
+    /// * `template_path` - Optional path to a .docx template file to use as base
+    /// * `output_path` - Path where the .docx file will be written
     ///
     /// # Returns
     /// * `Ok(())` - Successfully exported to DOCX format
-    /// * `Err(ExportError)` - Error during export (currently not implemented)
-    pub fn to_docx(_doc: &UnifiedDocument, _output_path: &Path) -> Result<(), ExportError> {
-        // TODO: Implement docx export
-        Err(ExportError::NotImplemented("DOCX export".to_string()))
+    /// * `Err(ExportError)` - Error during export (IO, format, or docx-rust errors)
+    ///
+    /// # Notes
+    /// If a template is provided, it will be read and sections will be appended to it.
+    /// Otherwise, a new document will be created from scratch.
+    pub fn to_docx(
+        doc: &UnifiedDocument,
+        template_path: Option<&Path>,
+        output_path: &Path,
+    ) -> Result<(), ExportError> {
+        // Create output directory if it doesn't exist
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent).map_err(ExportError::IoError)?;
+        }
+
+        // Pre-collect all heading strings so they have a stable lifetime
+        let heading_strings = collect_all_headings(&doc.sections);
+
+        // Note: docx-rust uses lifetime references, so we need to keep docx_file alive
+        // for the entire duration that we're working with the parsed Docx
+        let _docx_file_holder: Option<DocxFile>;
+        let mut docx = if let Some(template) = template_path {
+            // Read existing template file
+            log::info!("Reading template from: {}", template.display());
+            let docx_file = DocxFile::from_file(template)
+                .map_err(|e| ExportError::FormatError(format!("Failed to read template: {}", e)))?;
+            _docx_file_holder = Some(docx_file);
+            _docx_file_holder
+                .as_ref()
+                .unwrap()
+                .parse()
+                .map_err(|e| ExportError::FormatError(format!("Failed to parse template: {}", e)))?
+        } else {
+            // Create new document from scratch
+            log::info!("Creating new DOCX document from scratch");
+            _docx_file_holder = None;
+            Docx::default()
+        };
+
+        // TODO: Add custom properties for metadata when docx-rust supports it
+        // For now, we can only add content
+
+        // Add document sections using pre-collected headings
+        let mut heading_index = 0;
+        for section in &doc.sections {
+            append_section(&mut docx, section, &heading_strings, &mut heading_index)?;
+        }
+
+        // Write the document
+        log::info!("Writing DOCX to: {}", output_path.display());
+        docx.write_file(output_path)
+            .map_err(|e| ExportError::FormatError(format!("Failed to write DOCX: {}", e)))?;
+
+        log::info!(
+            "Successfully wrote DOCX with {} sections",
+            doc.sections.len()
+        );
+        Ok(())
+    }
+
+    /// Collect all heading strings beforehand so they have a stable lifetime
+    fn collect_all_headings(sections: &[crate::unified_document::DocumentSection]) -> Vec<String> {
+        let mut headings = Vec::new();
+        for section in sections {
+            headings.push(format!("{} {}", section.number, section.title));
+            headings.extend(collect_all_headings(&section.subsections));
+        }
+        headings
+    }
+
+    /// Append a document section to the docx
+    fn append_section<'a>(
+        docx: &mut Docx<'a>,
+        section: &crate::unified_document::DocumentSection,
+        heading_strings: &'a [String],
+        heading_index: &mut usize,
+    ) -> Result<(), ExportError> {
+        // Get the pre-generated heading string
+        let heading_ref = heading_strings[*heading_index].as_str();
+        *heading_index += 1;
+
+        // TODO: Set paragraph style to Heading1-6 based on section.heading_level
+        // The docx-rust API for setting styles is not well documented yet
+        let para = Paragraph::default().push_text(heading_ref);
+        docx.document.push(para);
+
+        // TODO: Add section content blocks once ContentBlock -> docx conversion is implemented
+        // For now, add a placeholder if there's content
+        if !section.content.is_empty() {
+            let para = Paragraph::default().push_text("[Content rendering not yet implemented]");
+            docx.document.push(para);
+        }
+
+        // Recursively add subsections
+        for subsection in &section.subsections {
+            append_section(docx, subsection, heading_strings, heading_index)?;
+        }
+
+        Ok(())
     }
 
     /// Export errors
