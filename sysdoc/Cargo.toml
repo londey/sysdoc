@@ -20,7 +20,7 @@ env_logger = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 itertools = { workspace = true }
-rayon = { version = "1.8", optional = true }
+rayon = { version = "1.11", optional = true }
 
 [dev-dependencies]
 pulldown-cmark = { workspace = true, features = ["default"] }
