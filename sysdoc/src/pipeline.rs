@@ -10,6 +10,7 @@ use crate::source_model::{MarkdownSection, MarkdownSource, SectionNumber, Source
 use crate::unified_document::{
     DocumentBuilder, DocumentMetadata, DocumentSection, Person, UnifiedDocument,
 };
+use itertools::Itertools;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -329,13 +330,15 @@ fn build_section_hierarchy(
     // Sort sections by section number
     all_sections.sort_by(|a, b| a.section_number.cmp(&b.section_number));
 
-    // Check for duplicate section numbers
-    for i in 1..all_sections.len() {
-        if all_sections[i - 1].section_number == all_sections[i].section_number {
-            return Err(TransformError::DuplicateSectionNumber(
-                all_sections[i].section_number.clone(),
-            ));
-        }
+    // Check for duplicate section numbers using itertools
+    if let Some((_prev, curr)) = all_sections
+        .iter()
+        .tuple_windows()
+        .find(|(a, b)| a.section_number == b.section_number)
+    {
+        return Err(TransformError::DuplicateSectionNumber(
+            curr.section_number.clone(),
+        ));
     }
 
     // Convert MarkdownSections to DocumentSections
