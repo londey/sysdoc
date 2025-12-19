@@ -361,11 +361,14 @@ fn build_section_hierarchy(
         .into_iter()
         .map(|section| {
             let depth = section.section_number.depth();
+            // Heading level is based on section number depth, not markdown heading level
+            // depth 0 (e.g., "1") -> Heading1, depth 1 (e.g., "1.1") -> Heading2, etc.
+            let heading_level = depth + 1;
             DocumentSection {
                 number: section.section_number.clone(),
                 title: section.heading_text.clone(),
                 depth,
-                heading_level: section.heading_level,
+                heading_level,
                 content: vec![], // TODO: Convert MarkdownBlock to ContentBlock
                 subsections: vec![],
             }
