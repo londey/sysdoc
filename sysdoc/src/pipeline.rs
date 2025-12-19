@@ -362,8 +362,8 @@ pub mod export {
     use crate::source_model::{MarkdownBlock, TextRun};
     use crate::unified_document::UnifiedDocument;
     use docx_rust::{
-        document::{Paragraph, Run},
-        formatting::{CharacterProperty, ParagraphProperty},
+        document::{Paragraph, Run, TextSpace},
+        formatting::{CharacterProperty, Fonts, ParagraphProperty},
         Docx, DocxFile,
     };
     use std::path::Path;
@@ -546,51 +546,31 @@ pub mod export {
 
     /// Create a docx Run from a TextRun with appropriate formatting
     ///
-    /// Uses Word's built-in character styles where applicable:
-    /// - "Emphasis" for italic text
-    /// - "Strong" for bold text
-    /// - Direct formatting as fallback for combinations
+    /// Uses direct formatting via CharacterProperty fields:
+    /// - bold => bold(true)
+    /// - italic => italics(true)
+    /// - strikethrough => strike(true)
+    /// - code => monospace font (Consolas)
     fn create_run(text_run: &TextRun) -> Run<'static> {
         let text = text_run.text.clone();
-
-        // If no formatting, return a simple run
-        if !text_run.has_formatting() {
-            return Run::default().push_text(text);
-        }
-
-        // Build character properties based on formatting
         let mut prop = CharacterProperty::default();
 
-        // Apply character styles for simple cases, direct formatting for combinations
-        // Word's built-in character styles: "Strong" (bold), "Emphasis" (italic)
-        if text_run.bold && !text_run.italic && !text_run.code {
-            // Pure bold - use Strong style
-            prop = prop.style_id("Strong");
-        } else if text_run.italic && !text_run.bold && !text_run.code {
-            // Pure italic - use Emphasis style
-            prop = prop.style_id("Emphasis");
-        } else {
-            // Combination or other formatting - use direct formatting
-            if text_run.bold {
-                prop = prop.bold(true);
-            }
-            if text_run.italic {
-                prop = prop.italics(true);
-            }
+        if text_run.bold {
+            prop = prop.bold(true);
         }
-
-        // Strikethrough always uses direct formatting
+        if text_run.italic {
+            prop = prop.italics(true);
+        }
         if text_run.strikethrough {
             prop = prop.strike(true);
         }
-
-        // Code formatting - use a monospace style or direct formatting
-        // Note: "CodeChar" is a common style name, but may not exist in all templates
         if text_run.code {
-            prop = prop.style_id("CodeChar");
+            prop = prop.fonts(Fonts::default().ascii("Consolas").h_ansi("Consolas"));
         }
 
-        Run::default().property(prop).push_text(text)
+        Run::default()
+            .property(prop)
+            .push_text((text, TextSpace::Preserve))
     }
 
     /// Export errors
