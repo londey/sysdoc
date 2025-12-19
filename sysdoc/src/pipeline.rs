@@ -359,8 +359,13 @@ fn build_section_hierarchy(
 
 /// Stage 3: Export unified document to various formats
 pub mod export {
+    use crate::source_model::{MarkdownBlock, TextRun};
     use crate::unified_document::UnifiedDocument;
-    use docx_rust::{document::Paragraph, formatting::ParagraphProperty, Docx, DocxFile};
+    use docx_rust::{
+        document::{Paragraph, Run},
+        formatting::{CharacterProperty, ParagraphProperty},
+        Docx, DocxFile,
+    };
     use std::path::Path;
 
     /// Get the Word built-in heading style ID for a given heading level
@@ -482,13 +487,110 @@ pub mod export {
             .push_text(heading_ref);
         docx.document.push(para);
 
-        // TODO: Add section content blocks (MarkdownBlock -> docx conversion)
-        if !section.content.is_empty() {
-            let para = Paragraph::default().push_text("[Content rendering not yet implemented]");
-            docx.document.push(para);
+        // Append content blocks
+        for block in &section.content {
+            append_block(docx, block);
         }
 
         Ok(())
+    }
+
+    /// Append a MarkdownBlock to the docx document
+    ///
+    /// Converts markdown block elements to their docx equivalents.
+    /// Currently supports:
+    /// - Paragraph: Converted to docx paragraph with formatted text runs
+    fn append_block(docx: &mut Docx<'_>, block: &MarkdownBlock) {
+        match block {
+            MarkdownBlock::Paragraph(runs) => {
+                let para = create_paragraph(runs);
+                docx.document.push(para);
+            }
+            // TODO: Handle other block types
+            _ => {
+                // For unhandled block types, add a placeholder
+                let para = Paragraph::default().push_text(format!(
+                    "[{:?} not yet implemented]",
+                    block_type_name(block)
+                ));
+                docx.document.push(para);
+            }
+        }
+    }
+
+    /// Get a human-readable name for a MarkdownBlock type
+    fn block_type_name(block: &MarkdownBlock) -> &'static str {
+        match block {
+            MarkdownBlock::Heading { .. } => "Heading",
+            MarkdownBlock::Paragraph(_) => "Paragraph",
+            MarkdownBlock::Image { .. } => "Image",
+            MarkdownBlock::CodeBlock { .. } => "CodeBlock",
+            MarkdownBlock::BlockQuote(_) => "BlockQuote",
+            MarkdownBlock::List { .. } => "List",
+            MarkdownBlock::InlineTable { .. } => "InlineTable",
+            MarkdownBlock::CsvTable { .. } => "CsvTable",
+            MarkdownBlock::Rule => "Rule",
+            MarkdownBlock::Html(_) => "Html",
+        }
+    }
+
+    /// Create a docx Paragraph from a vector of TextRuns
+    fn create_paragraph(runs: &[TextRun]) -> Paragraph<'static> {
+        let mut para = Paragraph::default();
+        for text_run in runs {
+            let run = create_run(text_run);
+            para = para.push(run);
+        }
+        para
+    }
+
+    /// Create a docx Run from a TextRun with appropriate formatting
+    ///
+    /// Uses Word's built-in character styles where applicable:
+    /// - "Emphasis" for italic text
+    /// - "Strong" for bold text
+    /// - Direct formatting as fallback for combinations
+    fn create_run(text_run: &TextRun) -> Run<'static> {
+        let text = text_run.text.clone();
+
+        // If no formatting, return a simple run
+        if !text_run.has_formatting() {
+            return Run::default().push_text(text);
+        }
+
+        // Build character properties based on formatting
+        let mut prop = CharacterProperty::default();
+
+        // Apply character styles for simple cases, direct formatting for combinations
+        // Word's built-in character styles: "Strong" (bold), "Emphasis" (italic)
+        if text_run.bold && !text_run.italic && !text_run.code {
+            // Pure bold - use Strong style
+            prop = prop.style_id("Strong");
+        } else if text_run.italic && !text_run.bold && !text_run.code {
+            // Pure italic - use Emphasis style
+            prop = prop.style_id("Emphasis");
+        } else {
+            // Combination or other formatting - use direct formatting
+            if text_run.bold {
+                prop = prop.bold(true);
+            }
+            if text_run.italic {
+                prop = prop.italics(true);
+            }
+        }
+
+        // Strikethrough always uses direct formatting
+        if text_run.strikethrough {
+            prop = prop.strike(true);
+        }
+
+        // Code formatting - use a monospace style or direct formatting
+        // Note: "CodeChar" is a common style name, but may not exist in all templates
+        if text_run.code {
+            prop = prop.style_id("CodeChar");
+        }
+
+        Run::default().property(prop).push_text(text)
     }
 
     /// Export errors

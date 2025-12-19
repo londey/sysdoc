@@ -24,6 +24,7 @@ pub use error::SourceModelError;
 pub use markdown_source::{MarkdownSection, MarkdownSource};
 pub use section_number::SectionNumber;
 pub use table::TableSource;
+pub use text_run::TextRun;
 pub use validation::ValidationError;
 
 /// Collection of all source files discovered and parsed
