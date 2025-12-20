@@ -359,7 +359,7 @@ fn build_section_hierarchy(
 
 /// Stage 3: Export unified document to various formats
 pub mod export {
-    use crate::source_model::{MarkdownBlock, TextRun};
+    use crate::source_model::{Alignment, MarkdownBlock, TextRun};
     use crate::unified_document::UnifiedDocument;
     use docx_rust::{
         document::{
@@ -853,6 +853,14 @@ pub mod export {
             } => {
                 append_csv_table(docx, path, *exists, data);
             }
+            MarkdownBlock::InlineTable {
+                alignments,
+                headers,
+                rows,
+            } => {
+                let table = create_inline_table(alignments, headers, rows);
+                docx.document.push(table);
+            }
             _ => {
                 // For unhandled block types, add a placeholder
                 let para = Paragraph::default().push_text(format!(
@@ -991,6 +999,127 @@ pub mod export {
             .push_text((text.to_string(), TextSpace::Preserve));
 
         let para = Paragraph::default().push(run);
+
+        TableCell::from(para)
+    }
+
+    /// Convert Alignment to JustificationVal for paragraph formatting
+    fn alignment_to_justification(alignment: Alignment) -> JustificationVal {
+        match alignment {
+            Alignment::Left | Alignment::None => JustificationVal::Left,
+            Alignment::Center => JustificationVal::Center,
+            Alignment::Right => JustificationVal::Right,
+        }
+    }
+
+    /// Create a DOCX table from inline markdown table data
+    ///
+    /// Converts markdown table with formatted text runs into a DOCX table.
+    /// Headers are formatted in bold. Column alignments are preserved.
+    ///
+    /// # Parameters
+    /// * `alignments` - Column alignment specifications
+    /// * `headers` - Header row cells, each containing formatted text runs
+    /// * `rows` - Data rows with cells containing formatted text runs
+    ///
+    /// # Returns
+    /// * `Table` - A formatted DOCX table ready to be inserted into the document
+    fn create_inline_table(
+        alignments: &[Alignment],
+        headers: &[Vec<TextRun>],
+        rows: &[Vec<Vec<TextRun>>],
+    ) -> Table<'static> {
+        let mut table = Table::default();
+
+        // Determine number of columns from headers
+        let num_cols = headers.len();
+
+        // Create table grid with equal column widths
+        let mut grid = TableGrid::default();
+        for _ in 0..num_cols {
+            grid = grid.push_column(2000);
+        }
+        table.grids = grid;
+
+        // Add header row (with bold formatting)
+        let header_row = create_inline_table_row(headers, alignments, true);
+        table = table.push_row(header_row);
+
+        // Add data rows
+        for row_data in rows {
+            let data_row = create_inline_table_row(row_data, alignments, false);
+            table = table.push_row(data_row);
+        }
+
+        table
+    }
+
+    /// Create a table row from cells containing formatted text runs
+    ///
+    /// # Parameters
+    /// * `cells` - Vector of cells, each containing formatted text runs
+    /// * `alignments` - Column alignment specifications
+    /// * `is_header` - If true, text will be additionally formatted in bold
+    ///
+    /// # Returns
+    /// * `TableRow` - A formatted table row
+    fn create_inline_table_row(
+        cells: &[Vec<TextRun>],
+        alignments: &[Alignment],
+        is_header: bool,
+    ) -> TableRow<'static> {
+        let mut row = TableRow::default();
+
+        for (col_idx, cell_runs) in cells.iter().enumerate() {
+            let alignment = alignments.get(col_idx).copied().unwrap_or(Alignment::None);
+            let cell = create_inline_table_cell(cell_runs, alignment, is_header);
+            row = row.push_cell(cell);
+        }
+
+        row
+    }
+
+    /// Create a table cell from formatted text runs
+    ///
+    /// # Parameters
+    /// * `runs` - The formatted text runs for the cell content
+    /// * `alignment` - The horizontal alignment for the cell
+    /// * `make_bold` - If true, adds bold formatting to all runs
+    ///
+    /// # Returns
+    /// * `TableCell` - A formatted table cell containing a paragraph with the text
+    fn create_inline_table_cell(
+        runs: &[TextRun],
+        alignment: Alignment,
+        make_bold: bool,
+    ) -> TableCell<'static> {
+        let justification = alignment_to_justification(alignment);
+        let mut para = Paragraph::default()
+            .property(ParagraphProperty::default().justification(justification));
+
+        for text_run in runs {
+            let text = text_run.text.clone();
+            let mut prop = CharacterProperty::default();
+
+            // Apply bold if this is a header row OR if the text run itself is bold
+            if make_bold || text_run.bold {
+                prop = prop.bold(true);
+            }
+            if text_run.italic {
+                prop = prop.italics(true);
+            }
+            if text_run.strikethrough {
+                prop = prop.strike(true);
+            }
+            if text_run.code {
+                prop = prop.fonts(Fonts::default().ascii("Consolas").h_ansi("Consolas"));
+            }
+
+            let run = Run::default()
+                .property(prop)
+                .push_text((text, TextSpace::Preserve));
+            para = para.push(run);
+        }
 
         TableCell::from(para)
     }
