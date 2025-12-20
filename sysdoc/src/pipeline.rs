@@ -362,11 +362,18 @@ pub mod export {
     use crate::source_model::{MarkdownBlock, TextRun};
     use crate::unified_document::UnifiedDocument;
     use docx_rust::{
-        document::{Paragraph, Run, TextSpace},
-        formatting::{CharacterProperty, Fonts, ParagraphProperty},
+        document::{
+            Blip, BlipFill, CNvPicPr, CNvPr, DocPr, Drawing, Ext, Extent, FillRect, Graphic,
+            GraphicData, Inline, NvPicPr, Paragraph, Picture, PrstGeom, Run, SpPr, Stretch,
+            TextSpace, Xfrm,
+        },
+        formatting::{CharacterProperty, Fonts, JustificationVal, ParagraphProperty},
+        media::MediaType,
+        rels::Relationship,
         Docx, DocxFile,
     };
-    use std::path::Path;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
 
     /// Get the Word built-in heading style ID for a given heading level
     ///
@@ -385,6 +392,197 @@ pub mod export {
             9 => "Heading9",
             _ if level < 1 => "Heading1",
             _ => "Heading9",
+        }
+    }
+
+    /// Pre-loaded image data with metadata for DOCX export
+    struct ImageData {
+        /// The image bytes
+        bytes: Vec<u8>,
+        /// Media path within the docx (e.g., "media/image1.png")
+        media_path: String,
+        /// Relationship ID (e.g., "rId10")
+        rel_id: String,
+        /// Image width in pixels (if available)
+        width_px: Option<usize>,
+        /// Image height in pixels (if available)
+        height_px: Option<usize>,
+    }
+
+    /// Collect and load all images from document sections
+    fn collect_images(
+        sections: &[crate::source_model::MarkdownSection],
+    ) -> HashMap<PathBuf, ImageData> {
+        let mut images = HashMap::new();
+        let mut image_counter = 1;
+        // Start relationship IDs high to avoid conflicts with template
+        let mut rel_id_counter = 100;
+
+        for section in sections {
+            for block in &section.content {
+                if let MarkdownBlock::Image {
+                    absolute_path,
+                    exists,
+                    ..
+                } = block
+                {
+                    if *exists && !images.contains_key(absolute_path) {
+                        if let Ok(bytes) = std::fs::read(absolute_path) {
+                            let extension = absolute_path
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("png");
+                            let media_path = format!("media/image{}.{}", image_counter, extension);
+                            let rel_id = format!("rId{}", rel_id_counter);
+
+                            // Read image dimensions from the bytes
+                            let (width_px, height_px) =
+                                match imagesize::blob_size(&bytes) {
+                                    Ok(size) => (Some(size.width), Some(size.height)),
+                                    Err(e) => {
+                                        log::warn!(
+                                            "Could not read dimensions for {}: {}",
+                                            absolute_path.display(),
+                                            e
+                                        );
+                                        (None, None)
+                                    }
+                                };
+
+                            images.insert(
+                                absolute_path.clone(),
+                                ImageData {
+                                    bytes,
+                                    media_path,
+                                    rel_id,
+                                    width_px,
+                                    height_px,
+                                },
+                            );
+
+                            image_counter += 1;
+                            rel_id_counter += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        images
+    }
+
+    /// EMUs (English Metric Units) per inch - Word uses this for measurements
+    const EMUS_PER_INCH: i64 = 914400;
+
+    /// Default image width in inches (6 inches fits well on a page with margins)
+    const DEFAULT_IMAGE_WIDTH_INCHES: f64 = 6.0;
+
+    /// Default DPI for images without embedded DPI information
+    const DEFAULT_IMAGE_DPI: f64 = 96.0;
+
+    /// Maximum image width in inches (to fit on a standard page with margins)
+    const MAX_IMAGE_WIDTH_INCHES: f64 = 6.5;
+
+    /// Create a Drawing element for an inline image
+    ///
+    /// If width_px and height_px are provided, the image dimensions are calculated
+    /// to preserve the original aspect ratio while fitting within the page width.
+    fn create_image_drawing(
+        rel_id: &str,
+        image_id: isize,
+        alt_text: &str,
+        width_px: Option<usize>,
+        height_px: Option<usize>,
+    ) -> Drawing<'static> {
+        // Calculate dimensions preserving aspect ratio
+        let (width_emu, height_emu) = match (width_px, height_px) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => {
+                // Calculate natural size in inches based on pixel dimensions
+                let natural_width_inches = w as f64 / DEFAULT_IMAGE_DPI;
+                let aspect_ratio = h as f64 / w as f64;
+
+                // Scale to fit within max width while preserving aspect ratio
+                let final_width_inches = natural_width_inches.min(MAX_IMAGE_WIDTH_INCHES);
+                let final_height_inches = final_width_inches * aspect_ratio;
+
+                let width = (final_width_inches * EMUS_PER_INCH as f64) as u64;
+                let height = (final_height_inches * EMUS_PER_INCH as f64) as u64;
+                (width, height)
+            }
+            _ => {
+                // Fallback to default 6x4 inches if dimensions unknown
+                let width = (DEFAULT_IMAGE_WIDTH_INCHES * EMUS_PER_INCH as f64) as u64;
+                let height = (DEFAULT_IMAGE_WIDTH_INCHES * 0.667 * EMUS_PER_INCH as f64) as u64;
+                (width, height)
+            }
+        };
+
+        Drawing {
+            anchor: None,
+            inline: Some(Inline {
+                dist_t: Some(0),
+                dist_b: Some(0),
+                dist_l: Some(0),
+                dist_r: Some(0),
+                extent: Some(Extent {
+                    cx: width_emu,
+                    cy: height_emu,
+                }),
+                doc_property: DocPr {
+                    id: Some(image_id),
+                    name: Some(format!("Picture {}", image_id).into()),
+                    descr: Some(alt_text.to_string().into()),
+                },
+                graphic: Some(Graphic {
+                    a: "http://schemas.openxmlformats.org/drawingml/2006/main".into(),
+                    data: GraphicData {
+                        uri: "http://schemas.openxmlformats.org/drawingml/2006/picture".into(),
+                        children: vec![Picture {
+                            a: "http://schemas.openxmlformats.org/drawingml/2006/picture".into(),
+                            nv_pic_pr: NvPicPr {
+                                c_nv_pr: Some(CNvPr {
+                                    id: Some(0),
+                                    name: Some(format!("Picture {}", image_id).into()),
+                                    descr: Some(alt_text.to_string().into()),
+                                }),
+                                c_nv_pic_pr: Some(CNvPicPr {}),
+                            },
+                            fill: BlipFill {
+                                blip: Blip {
+                                    embed: rel_id.to_string().into(),
+                                    cstate: None,
+                                },
+                                stretch: Some(Stretch {
+                                    fill_rect: Some(FillRect {}),
+                                }),
+                            },
+                            sp_pr: SpPr {
+                                xfrm: Some(Xfrm {
+                                    offset: None,
+                                    ext: Some(Ext {
+                                        cx: Some(width_emu as isize),
+                                        cy: Some(height_emu as isize),
+                                    }),
+                                }),
+                                prst_geom: Some(PrstGeom {
+                                    prst: Some("rect".into()),
+                                    av_lst: None,
+                                }),
+                            },
+                        }],
+                    },
+                }),
+                // Set remaining fields to None/defaults
+                simple_pos_attr: None,
+                relative_height: None,
+                behind_doc: None,
+                locked: None,
+                layout_in_cell: None,
+                allow_overlap: None,
+                simple_pos: None,
+                position_horizontal: None,
+                position_vertical: None,
+            }),
         }
     }
 
@@ -430,6 +628,10 @@ pub mod export {
         // Pre-collect all heading strings so they have a stable lifetime
         let heading_strings = collect_all_headings(&doc.sections);
 
+        // Pre-collect all images so they have a stable lifetime
+        let images = collect_images(&doc.sections);
+        log::info!("Collected {} images for embedding", images.len());
+
         // Read the template file - required for style definitions
         log::info!("Reading template from: {}", template_path.display());
         let docx_file = DocxFile::from_file(template_path)
@@ -438,13 +640,61 @@ pub mod export {
             .parse()
             .map_err(|e| ExportError::FormatError(format!("Failed to parse template: {}", e)))?;
 
-        // TODO: Add custom properties for metadata when docx-rust supports it
-        // For now, we can only add content
+        // Add images to docx media and relationships
+        for (path, image_data) in &images {
+            log::debug!(
+                "Adding image: {} -> {} ({})",
+                path.display(),
+                image_data.media_path,
+                image_data.rel_id
+            );
+
+            // Add to media (the bytes reference the pre-collected images HashMap)
+            docx.media.insert(
+                image_data.media_path.clone(),
+                (MediaType::Image, &image_data.bytes),
+            );
+
+            // Add relationship with specific ID
+            docx.document_rels
+                .get_or_insert(Default::default())
+                .relationships
+                .push(Relationship {
+                    id: image_data.rel_id.clone().into(),
+                    target: image_data.media_path.clone().into(),
+                    ty: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+                        .into(),
+                    target_mode: None,
+                });
+        }
+
+        // Create a lookup map from absolute path to (rel_id, image_index, width, height) for use in append_block
+        let image_lookup: HashMap<&PathBuf, (&str, isize, Option<usize>, Option<usize>)> = images
+            .iter()
+            .enumerate()
+            .map(|(idx, (path, data))| {
+                (
+                    path,
+                    (
+                        data.rel_id.as_str(),
+                        idx as isize + 1,
+                        data.width_px,
+                        data.height_px,
+                    ),
+                )
+            })
+            .collect();
 
         // Add document sections using pre-collected headings
         let mut heading_index = 0;
         for section in &doc.sections {
-            append_section(&mut docx, section, &heading_strings, &mut heading_index)?;
+            append_section(
+                &mut docx,
+                section,
+                &heading_strings,
+                &mut heading_index,
+                &image_lookup,
+            )?;
         }
 
         // Write the document
@@ -473,6 +723,7 @@ pub mod export {
         section: &crate::source_model::MarkdownSection,
         heading_strings: &'a [String],
         heading_index: &mut usize,
+        image_lookup: &HashMap<&PathBuf, (&str, isize, Option<usize>, Option<usize>)>,
     ) -> Result<(), ExportError> {
         // Get the pre-generated heading string
         let heading_ref = heading_strings[*heading_index].as_str();
@@ -489,7 +740,7 @@ pub mod export {
 
         // Append content blocks
         for block in &section.content {
-            append_block(docx, block);
+            append_block(docx, block, image_lookup);
         }
 
         Ok(())
@@ -500,11 +751,50 @@ pub mod export {
     /// Converts markdown block elements to their docx equivalents.
     /// Currently supports:
     /// - Paragraph: Converted to docx paragraph with formatted text runs
-    fn append_block(docx: &mut Docx<'_>, block: &MarkdownBlock) {
+    /// - Image: Converted to inline drawing with embedded image (centered, aspect ratio preserved)
+    fn append_block(
+        docx: &mut Docx<'_>,
+        block: &MarkdownBlock,
+        image_lookup: &HashMap<&PathBuf, (&str, isize, Option<usize>, Option<usize>)>,
+    ) {
         match block {
             MarkdownBlock::Paragraph(runs) => {
                 let para = create_paragraph(runs);
                 docx.document.push(para);
+            }
+            MarkdownBlock::Image {
+                absolute_path,
+                alt_text,
+                exists,
+                ..
+            } => {
+                if *exists {
+                    if let Some((rel_id, image_id, width_px, height_px)) =
+                        image_lookup.get(absolute_path)
+                    {
+                        let drawing =
+                            create_image_drawing(rel_id, *image_id, alt_text, *width_px, *height_px);
+                        let run = Run::default().push(drawing);
+                        // Center the image paragraph
+                        let para = Paragraph::default()
+                            .property(
+                                ParagraphProperty::default()
+                                    .justification(JustificationVal::Center),
+                            )
+                            .push(run);
+                        docx.document.push(para);
+                    } else {
+                        // Image not found in lookup (shouldn't happen)
+                        let para = Paragraph::default()
+                            .push_text(format!("[Image not found: {}]", absolute_path.display()));
+                        docx.document.push(para);
+                    }
+                } else {
+                    // Image file doesn't exist
+                    let para = Paragraph::default()
+                        .push_text(format!("[Missing image: {}]", absolute_path.display()));
+                    docx.document.push(para);
+                }
             }
             // TODO: Handle other block types
             _ => {
