@@ -1097,31 +1097,48 @@ pub mod export {
         let mut para = Paragraph::default()
             .property(ParagraphProperty::default().justification(justification));
 
-        for text_run in runs {
-            let text = text_run.text.clone();
+        if runs.is_empty() {
+            // Empty cells still need at least one run for valid DOCX
             let mut prop = CharacterProperty::default();
-
-            // Apply bold if this is a header row OR if the text run itself is bold
-            if make_bold || text_run.bold {
+            if make_bold {
                 prop = prop.bold(true);
             }
-            if text_run.italic {
-                prop = prop.italics(true);
-            }
-            if text_run.strikethrough {
-                prop = prop.strike(true);
-            }
-            if text_run.code {
-                prop = prop.fonts(Fonts::default().ascii("Consolas").h_ansi("Consolas"));
-            }
-
             let run = Run::default()
                 .property(prop)
-                .push_text((text, TextSpace::Preserve));
+                .push_text((String::new(), TextSpace::Preserve));
             para = para.push(run);
+        } else {
+            for text_run in runs {
+                let run = create_text_run(text_run, make_bold);
+                para = para.push(run);
+            }
         }
 
         TableCell::from(para)
+    }
+
+    /// Create a DOCX Run from a TextRun with formatting
+    fn create_text_run(text_run: &TextRun, make_bold: bool) -> Run<'static> {
+        let text = text_run.text.clone();
+        let mut prop = CharacterProperty::default();
+
+        // Apply bold if this is a header row OR if the text run itself is bold
+        if make_bold || text_run.bold {
+            prop = prop.bold(true);
+        }
+        if text_run.italic {
+            prop = prop.italics(true);
+        }
+        if text_run.strikethrough {
+            prop = prop.strike(true);
+        }
+        if text_run.code {
+            prop = prop.fonts(Fonts::default().ascii("Consolas").h_ansi("Consolas"));
+        }
+
+        Run::default()
+            .property(prop)
+            .push_text((text, TextSpace::Preserve))
     }
 
     /// Export errors

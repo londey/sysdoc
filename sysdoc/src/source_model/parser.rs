@@ -129,7 +129,10 @@ impl MarkdownParser {
         file_section_number: &SectionNumber,
     ) -> Result<Vec<MarkdownSection>, SourceModelError> {
         let mut parser = Self::new(document_root.to_path_buf(), file_section_number.clone());
-        let md_parser = pulldown_cmark::Parser::new(content);
+        let mut options = pulldown_cmark::Options::empty();
+        options.insert(pulldown_cmark::Options::ENABLE_TABLES);
+        options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+        let md_parser = pulldown_cmark::Parser::new_ext(content, options);
 
         for event in md_parser {
             parser.process_event(event);
