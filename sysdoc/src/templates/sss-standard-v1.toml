@@ -148,6 +148,49 @@ table or other method in this paragraph, in an appendix referenced from this par
 annotation of the requirements in the paragraphs where they appear.
 """
 
+[files."src/03_requirements/03.01.01_example_requirement.md"]
+heading = "Example Requirement"
+guidance = """
+This section provides an example requirement format. Delete or replace this section with actual requirements.
+"""
+content = """
+<!--
+Properties of a Good Requirement:
+- Necessary: The requirement is essential; removing it would cause a deficiency
+- Singular: The requirement addresses one and only one thing
+- Correct: The requirement accurately describes the needed capability
+- Unambiguous: The requirement has only one possible interpretation
+- Feasible: The requirement can be implemented within known constraints
+- Appropriate to Level: The requirement is at the right level of abstraction
+- Complete: The requirement contains all necessary information
+- Conforming: The requirement follows the project's standard format
+- Verifiable: The requirement can be tested or otherwise verified
+-->
+
+The system shall provide user authentication using multi-factor authentication (MFA).
+
+**Required:**
+1. Support for time-based one-time passwords (TOTP)
+2. Session timeout after 15 minutes of inactivity
+3. Account lockout after 5 failed authentication attempts
+
+**Desired:**
+1. Support for hardware security keys (FIDO2/WebAuthn)
+2. Configurable session timeout duration
+
+**Highly Desired:**
+1. Biometric authentication support
+2. Single sign-on (SSO) integration capability
+
+**Rationale**
+
+Multi-factor authentication significantly reduces the risk of unauthorized access by requiring users to provide multiple forms of verification. This requirement addresses security concerns identified in the system threat analysis and aligns with organizational security policies.
+
+**Verification Method**
+
+Test: Execute authentication test procedures to verify MFA functionality, including positive tests for valid credentials and negative tests for invalid credentials, timeout behavior, and lockout functionality. Inspect configuration to verify compliance with specified parameters.
+"""
+
 [files."src/03_requirements/03.02_system_capability_requirements.md"]
 heading = "System capability requirements"
 guidance = """

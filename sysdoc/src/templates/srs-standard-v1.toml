@@ -97,6 +97,49 @@ distinctions. If states and/or modes are required, each requirement in this spec
 be correlated to the states and modes.
 """
 
+[files."src/03_requirements/03.01.01_example_requirement.md"]
+heading = "Example Requirement"
+guidance = """
+This section provides an example requirement format. Delete or replace this section with actual requirements.
+"""
+content = """
+<!--
+Properties of a Good Requirement:
+- Necessary: The requirement is essential; removing it would cause a deficiency
+- Singular: The requirement addresses one and only one thing
+- Correct: The requirement accurately describes the needed capability
+- Unambiguous: The requirement has only one possible interpretation
+- Feasible: The requirement can be implemented within known constraints
+- Appropriate to Level: The requirement is at the right level of abstraction
+- Complete: The requirement contains all necessary information
+- Conforming: The requirement follows the project's standard format
+- Verifiable: The requirement can be tested or otherwise verified
+-->
+
+The software shall validate all user input before processing to prevent injection attacks.
+
+**Required:**
+1. Sanitize all string inputs to remove or escape special characters
+2. Validate input length against defined maximum limits
+3. Reject malformed data with appropriate error messages
+
+**Desired:**
+1. Provide configurable validation rules per input field
+2. Log all validation failures for security monitoring
+
+**Highly Desired:**
+1. Support custom validation rule definitions
+2. Real-time input validation feedback in the user interface
+
+**Rationale**
+
+Input validation is a critical security control that prevents common attack vectors such as SQL injection, cross-site scripting (XSS), and buffer overflow attacks. This requirement addresses OWASP Top 10 security risks and supports the system's security certification requirements.
+
+**Verification Method**
+
+Test: Execute security test procedures including positive tests with valid inputs and negative tests with malicious payloads (SQL injection strings, XSS payloads, oversized inputs). Inspect code to verify input validation is applied consistently across all entry points. Analysis: Review security scan results to confirm no injection vulnerabilities are detected.
+"""
+
 [files."src/03_requirements/03.02_capability_requirements.md"]
 heading = "Capability Requirements"
 guidance = """
