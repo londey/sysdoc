@@ -89,6 +89,8 @@ jobs:
   docx-validation:
     name: DOCX Validation
     runs-on: ubuntu-latest
+    env:
+      OOXML_VALIDATOR_VERSION: "2.1.6"
 
     steps:
     - name: Checkout code
@@ -106,16 +108,23 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-docx-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+    - name: Cache OOXML-Validator
+      uses: actions/cache@v4
       with:
-        dotnet-version: '8.0.x'
+        path: ~/.local/bin/ooxml-validator
+        key: ooxml-validator-${{ env.OOXML_VALIDATOR_VERSION }}-linux-x64
 
-    - name: Install OOXMLValidator
-      run: dotnet tool install -g OOXMLValidator
+    - name: Download OOXML-Validator
+      run: |
+        if [ ! -f ~/.local/bin/ooxml-validator/OOXML-Validator ]; then
+          mkdir -p ~/.local/bin/ooxml-validator
+          curl -sL "https://github.com/mikeebowen/OOXML-Validator/releases/download/v${OOXML_VALIDATOR_VERSION}/linux-x64.zip" -o /tmp/ooxml-validator.zip
+          unzip -o /tmp/ooxml-validator.zip -d ~/.local/bin/ooxml-validator
+          chmod +x ~/.local/bin/ooxml-validator/OOXML-Validator
+        fi
 
-    - name: Add .NET tools to PATH
-      run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+    - name: Add OOXML-Validator to PATH
+      run: echo "$HOME/.local/bin/ooxml-validator" >> $GITHUB_PATH
 
     - name: Build sysdoc
       run: cargo build --release

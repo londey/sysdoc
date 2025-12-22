@@ -65,13 +65,25 @@ This is also run automatically in CI.
 
 ## OOXML Validator
 
-[OOXML Validator](https://github.com/mikeebowen/OOXML-Validator) is a cross-platform .NET CLI tool that validates Office Open XML files.
+[OOXML-Validator](https://github.com/mikeebowen/OOXML-Validator) is a cross-platform tool that validates Office Open XML files against the ECMA-376 and ISO/IEC 29500 standards.
 
-- **Install:** `dotnet tool install -g OOXMLValidator`
-- **Usage:** `OOXMLValidator file.docx`
-- **Output:** JSON with validation errors (empty `[]` means valid)
+**Installation:**
 
-Works on Windows, Linux, and macOS (requires .NET 8.0+).
+```bash
+# Linux/macOS
+./scripts/validate-docx.sh --install-validator
+
+# Windows (PowerShell)
+.\scripts\validate-docx.ps1 -InstallValidator
+```
+
+Or download directly from [GitHub Releases](https://github.com/mikeebowen/OOXML-Validator/releases).
+
+**Usage:** `OOXML-Validator file.docx`
+
+**Output:** JSON array of validation errors (empty `[]` means valid)
+
+Works on Windows, Linux, and macOS as a self-contained binary (no .NET runtime required).
 
 ## Adding New Tests
 

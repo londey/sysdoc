@@ -1,8 +1,7 @@
-# validate-docx.ps1 - Build test fixtures and validate DOCX output with OOXML Validator
+# validate-docx.ps1 - Build test fixtures and validate DOCX output with OOXML-Validator
 #
 # Prerequisites:
-#   - .NET SDK installed
-#   - OOXMLValidator installed: dotnet tool install -g OOXMLValidator
+#   - OOXML-Validator binary (from https://github.com/mikeebowen/OOXML-Validator)
 #
 # Usage:
 #   .\scripts\validate-docx.ps1
@@ -18,28 +17,71 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $FixturesDir = Join-Path $ProjectRoot "tests\fixtures"
 $BuildDir = Join-Path $ProjectRoot "target\docx-validation"
+$ValidatorVersion = if ($env:OOXML_VALIDATOR_VERSION) { $env:OOXML_VALIDATOR_VERSION } else { "2.1.6" }
+$ValidatorInstallDir = Join-Path $env:LOCALAPPDATA "ooxml-validator"
 
 # Install validator if requested
 if ($InstallValidator) {
-    Write-Host "Installing OOXMLValidator..."
-    dotnet tool install -g OOXMLValidator 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        dotnet tool update -g OOXMLValidator
+    Write-Host "Installing OOXML-Validator v$ValidatorVersion for win-x64..."
+
+    if (-not (Test-Path $ValidatorInstallDir)) {
+        New-Item -ItemType Directory -Path $ValidatorInstallDir | Out-Null
     }
+
+    $downloadUrl = "https://github.com/mikeebowen/OOXML-Validator/releases/download/v$ValidatorVersion/win-x64.zip"
+    $zipPath = Join-Path $env:TEMP "ooxml-validator.zip"
+
+    Write-Host "Downloading from: $downloadUrl"
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+
+    Write-Host "Extracting to: $ValidatorInstallDir"
+    Expand-Archive -Path $zipPath -DestinationPath $ValidatorInstallDir -Force
+    Remove-Item $zipPath
+
+    Write-Host ""
+    Write-Host "Installed successfully!" -ForegroundColor Green
+    Write-Host "Add to PATH: `$env:PATH += `";$ValidatorInstallDir`""
     exit 0
 }
 
-# Check if OOXMLValidator is available
-# $validatorPath = Get-Command OOXMLValidator -ErrorAction SilentlyContinue
-$validatorPath = "OOXMLValidatorCLI.exe"
+# Find OOXML-Validator binary
+function Find-Validator {
+    # Check PATH first
+    $pathValidator = Get-Command "OOXML-Validator.exe" -ErrorAction SilentlyContinue
+    if ($pathValidator) {
+        return $pathValidator.Source
+    }
+
+    # Check common install locations
+    $locations = @(
+        (Join-Path $ValidatorInstallDir "OOXML-Validator.exe"),
+        (Join-Path $env:LOCALAPPDATA "ooxml-validator\OOXML-Validator.exe"),
+        ".\OOXML-Validator.exe"
+    )
+
+    foreach ($loc in $locations) {
+        if (Test-Path $loc) {
+            return $loc
+        }
+    }
+
+    return $null
+}
+
+$validatorPath = Find-Validator
 
 if (-not $validatorPath) {
-    Write-Host "Warning: OOXMLValidator not found. Install with:" -ForegroundColor Yellow
-    Write-Host "  dotnet tool install -g OOXMLValidator"
+    Write-Host "Warning: OOXML-Validator not found." -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Alternatively, run: .\scripts\validate-docx.ps1 -InstallValidator"
+    Write-Host "Install with:"
+    Write-Host "  .\scripts\validate-docx.ps1 -InstallValidator"
+    Write-Host ""
+    Write-Host "Or download manually from:"
+    Write-Host "  https://github.com/mikeebowen/OOXML-Validator/releases"
     exit 1
 }
+
+Write-Host "Using validator: $validatorPath"
 
 # Build sysdoc if needed
 Write-Host "Building sysdoc..."
@@ -82,6 +124,7 @@ $TestCases = @(
 Write-Host ""
 Write-Host "========================================="
 Write-Host "DOCX Validation Test Suite"
+Write-Host "Using: OOXML-Validator v$ValidatorVersion"
 Write-Host "========================================="
 Write-Host ""
 
@@ -101,15 +144,20 @@ foreach ($testCase in $TestCases) {
         continue
     }
 
-    # Validate with OOXMLValidator
-    $validationOutput = & $validatorPath $OutputFile 2>&1 | Out-String
+    # Get absolute path for validator
+    $absOutputFile = (Resolve-Path $OutputFile).Path
 
-    # Check if validation passed (empty JSON array [] means no errors)
-    if ($validationOutput -match '^\s*\[\s*\]\s*$' -or $validationOutput -match '"errors"\s*:\s*\[\s*\]') {
+    # Validate with OOXML-Validator (outputs JSON by default)
+    $validationOutput = & $validatorPath $absOutputFile 2>&1 | Out-String
+
+    # OOXML-Validator returns empty array [] for valid documents
+    # or array of error objects for invalid documents
+    if ($validationOutput -match '^\s*\[\s*\]\s*$') {
         Write-Host "PASSED" -ForegroundColor Green
         $Passed++
     }
-    elseif ($validationOutput -match 'error|invalid|failed') {
+    elseif ($validationOutput -match '"Description"') {
+        # JSON array with error objects
         Write-Host "FAILED" -ForegroundColor Red
         $Failed++
         $FailedTests += $testCase
@@ -117,9 +165,19 @@ foreach ($testCase in $TestCases) {
         $validationOutput -split "`n" | Select-Object -First 20 | ForEach-Object { Write-Host "    $_" }
     }
     else {
-        # No errors found in output
-        Write-Host "PASSED" -ForegroundColor Green
-        $Passed++
+        # Check if output is empty or just whitespace (valid)
+        $trimmed = $validationOutput.Trim()
+        if ([string]::IsNullOrEmpty($trimmed) -or $trimmed -eq "[]") {
+            Write-Host "PASSED" -ForegroundColor Green
+            $Passed++
+        }
+        else {
+            # Unknown output format, treat as error
+            Write-Host "UNKNOWN" -ForegroundColor Yellow
+            Write-Host "    Output: $validationOutput"
+            $Failed++
+            $FailedTests += "$testCase (unknown validator output)"
+        }
     }
 }
 

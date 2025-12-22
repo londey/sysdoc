@@ -1,9 +1,8 @@
 #!/bin/bash
-# validate-docx.sh - Build test fixtures and validate DOCX output with OOXML Validator
+# validate-docx.sh - Build test fixtures and validate DOCX output with OOXML-Validator
 #
 # Prerequisites:
-#   - .NET SDK installed
-#   - OOXMLValidator installed: dotnet tool install -g OOXMLValidator
+#   - OOXML-Validator binary in PATH (from https://github.com/mikeebowen/OOXML-Validator)
 #
 # Usage:
 #   ./scripts/validate-docx.sh [--install-validator]
@@ -14,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
 BUILD_DIR="$PROJECT_ROOT/target/docx-validation"
+OOXML_VALIDATOR_VERSION="${OOXML_VALIDATOR_VERSION:-2.1.6}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -21,21 +21,93 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Detect platform
+detect_platform() {
+    case "$(uname -s)" in
+        Linux*)
+            if [ "$(uname -m)" = "aarch64" ]; then
+                echo "linux-arm64"
+            else
+                echo "linux-x64"
+            fi
+            ;;
+        Darwin*)
+            if [ "$(uname -m)" = "arm64" ]; then
+                echo "osx-arm64"
+            else
+                echo "osx-x64"
+            fi
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            echo "win-x64"
+            ;;
+        *)
+            echo "linux-x64"
+            ;;
+    esac
+}
+
 # Install validator if requested
 if [[ "$1" == "--install-validator" ]]; then
-    echo "Installing OOXMLValidator..."
-    dotnet tool install -g OOXMLValidator || dotnet tool update -g OOXMLValidator
+    PLATFORM=$(detect_platform)
+    INSTALL_DIR="$HOME/.local/bin/ooxml-validator"
+
+    echo "Installing OOXML-Validator v${OOXML_VALIDATOR_VERSION} for ${PLATFORM}..."
+    mkdir -p "$INSTALL_DIR"
+
+    DOWNLOAD_URL="https://github.com/mikeebowen/OOXML-Validator/releases/download/v${OOXML_VALIDATOR_VERSION}/${PLATFORM}.zip"
+    echo "Downloading from: $DOWNLOAD_URL"
+
+    curl -sL "$DOWNLOAD_URL" -o /tmp/ooxml-validator.zip
+    unzip -o /tmp/ooxml-validator.zip -d "$INSTALL_DIR"
+
+    if [[ "$PLATFORM" != "win-x64" ]]; then
+        chmod +x "$INSTALL_DIR/OOXML-Validator"
+    fi
+
+    echo ""
+    echo -e "${GREEN}Installed successfully!${NC}"
+    echo "Add to PATH: export PATH=\"\$PATH:$INSTALL_DIR\""
     exit 0
 fi
 
-# Check if OOXMLValidator is available
-if ! command -v OOXMLValidator &> /dev/null; then
-    echo -e "${YELLOW}Warning: OOXMLValidator not found. Install with:${NC}"
-    echo "  dotnet tool install -g OOXMLValidator"
+# Find OOXML-Validator binary
+find_validator() {
+    # Check PATH first
+    if command -v OOXML-Validator &> /dev/null; then
+        echo "OOXML-Validator"
+        return 0
+    fi
+
+    # Check common install locations
+    local locations=(
+        "$HOME/.local/bin/ooxml-validator/OOXML-Validator"
+        "/usr/local/bin/OOXML-Validator"
+        "./OOXML-Validator"
+    )
+
+    for loc in "${locations[@]}"; do
+        if [[ -x "$loc" ]]; then
+            echo "$loc"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+VALIDATOR=$(find_validator) || {
+    echo -e "${YELLOW}Warning: OOXML-Validator not found.${NC}"
     echo ""
-    echo "Alternatively, run: ./scripts/validate-docx.sh --install-validator"
+    echo "Install with:"
+    echo "  ./scripts/validate-docx.sh --install-validator"
+    echo ""
+    echo "Or download manually from:"
+    echo "  https://github.com/mikeebowen/OOXML-Validator/releases"
     exit 1
-fi
+}
+
+echo "Using validator: $VALIDATOR"
 
 # Build sysdoc if needed
 echo "Building sysdoc..."
@@ -71,6 +143,7 @@ TEST_CASES=(
 echo ""
 echo "========================================="
 echo "DOCX Validation Test Suite"
+echo "Using: OOXML-Validator v${OOXML_VALIDATOR_VERSION}"
 echo "========================================="
 echo ""
 
@@ -89,23 +162,37 @@ for test_case in "${TEST_CASES[@]}"; do
         continue
     fi
 
-    # Validate with OOXMLValidator
-    VALIDATION_OUTPUT=$(OOXMLValidator "$OUTPUT_FILE" 2>&1) || true
+    # Get absolute path for validator
+    ABS_OUTPUT_FILE="$(cd "$(dirname "$OUTPUT_FILE")" && pwd)/$(basename "$OUTPUT_FILE")"
 
-    # Check if validation passed (empty JSON array [] means no errors)
-    if echo "$VALIDATION_OUTPUT" | grep -q '^\[\]$' || echo "$VALIDATION_OUTPUT" | grep -q '"errors":\s*\[\]'; then
+    # Validate with OOXML-Validator (outputs JSON by default)
+    VALIDATION_OUTPUT=$("$VALIDATOR" "$ABS_OUTPUT_FILE" 2>&1) || true
+
+    # OOXML-Validator returns empty array [] for valid documents
+    # or array of error objects for invalid documents
+    if echo "$VALIDATION_OUTPUT" | grep -qE '^\[\s*\]$'; then
         echo -e "${GREEN}PASSED${NC}"
         PASSED=$((PASSED + 1))
-    elif echo "$VALIDATION_OUTPUT" | grep -qiE 'error|invalid|failed'; then
+    elif echo "$VALIDATION_OUTPUT" | grep -qE '^\[.*"Description"'; then
+        # JSON array with error objects
         echo -e "${RED}FAILED${NC}"
         FAILED=$((FAILED + 1))
         FAILED_TESTS="$FAILED_TESTS\n  - $test_case"
         echo "    Validation errors:"
         echo "$VALIDATION_OUTPUT" | head -20 | sed 's/^/    /'
     else
-        # No errors found in output
-        echo -e "${GREEN}PASSED${NC}"
-        PASSED=$((PASSED + 1))
+        # Check if output is empty or just whitespace (valid)
+        TRIMMED=$(echo "$VALIDATION_OUTPUT" | tr -d '[:space:]')
+        if [[ -z "$TRIMMED" || "$TRIMMED" == "[]" ]]; then
+            echo -e "${GREEN}PASSED${NC}"
+            PASSED=$((PASSED + 1))
+        else
+            # Unknown output format, treat as error
+            echo -e "${YELLOW}UNKNOWN${NC}"
+            echo "    Output: $VALIDATION_OUTPUT"
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS="$FAILED_TESTS\n  - $test_case (unknown validator output)"
+        fi
     fi
 done
 
