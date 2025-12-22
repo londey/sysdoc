@@ -129,7 +129,10 @@ impl MarkdownParser {
         file_section_number: &SectionNumber,
     ) -> Result<Vec<MarkdownSection>, SourceModelError> {
         let mut parser = Self::new(document_root.to_path_buf(), file_section_number.clone());
-        let md_parser = pulldown_cmark::Parser::new(content);
+        let mut options = pulldown_cmark::Options::empty();
+        options.insert(pulldown_cmark::Options::ENABLE_TABLES);
+        options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+        let md_parser = pulldown_cmark::Parser::new_ext(content, options);
 
         for event in md_parser {
             parser.process_event(event);
@@ -327,6 +330,9 @@ impl MarkdownParser {
                 self.finish_table();
             }
             TagEnd::TableHead => {
+                // In pulldown-cmark 0.13+, TableHead doesn't contain TableRow,
+                // so we need to finish the header row here before clearing in_header
+                self.finish_table_row();
                 if let Some(table_ctx) = self.table_stack.last_mut() {
                     table_ctx.in_header = false;
                 }

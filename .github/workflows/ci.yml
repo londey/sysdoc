@@ -86,6 +86,57 @@ jobs:
         name: sysdoc-macos-x86_64
         path: target/release/sysdoc
 
+  docx-validation:
+    name: DOCX Validation
+    runs-on: ubuntu-latest
+    env:
+      OOXML_VALIDATOR_VERSION: "2.1.6"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-docx-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache OOXML-Validator
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/bin/ooxml-validator
+        key: ooxml-validator-${{ env.OOXML_VALIDATOR_VERSION }}-linux-x64
+
+    - name: Download OOXML-Validator
+      run: |
+        if [ ! -f ~/.local/bin/ooxml-validator/OOXMLValidatorCLI ]; then
+          mkdir -p ~/.local/bin/ooxml-validator
+          curl -sL "https://github.com/mikeebowen/OOXML-Validator/releases/download/v${OOXML_VALIDATOR_VERSION}/linux-x64.zip" -o /tmp/ooxml-validator.zip
+          unzip -o /tmp/ooxml-validator.zip -d ~/.local/bin/ooxml-validator
+          chmod +x ~/.local/bin/ooxml-validator/OOXMLValidatorCLI
+        fi
+
+    - name: Add OOXML-Validator to PATH
+      run: echo "$HOME/.local/bin/ooxml-validator" >> $GITHUB_PATH
+
+    - name: Build sysdoc
+      run: cargo build --release
+
+    - name: Generate test template
+      run: cargo run --bin generate_test_template
+
+    - name: Run DOCX validation
+      run: |
+        chmod +x scripts/validate-docx.sh
+        ./scripts/validate-docx.sh
+
   security:
     name: Security checks
     runs-on: ubuntu-latest

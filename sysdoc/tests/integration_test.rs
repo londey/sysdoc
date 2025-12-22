@@ -75,12 +75,54 @@ fn test_template_exists() {
     );
 }
 
-// TODO: Add tests for actual build functionality once implemented
-// #[test]
-// fn test_build_minimal_sdd() {
-//     let example_path = Path::new("examples/minimal-sdd");
-//     let output_path = Path::new("target/test-output/minimal-sdd.docx");
-//     let result = build_document(example_path, output_path);
-//     assert!(result.is_ok(), "build should succeed");
-//     assert!(output_path.exists(), "output file should be created");
-// }
+/// Test that all fixture directories have the expected structure
+#[test]
+fn test_fixtures_exist() {
+    let workspace_root = get_workspace_root();
+    let fixtures_path = workspace_root.join("tests/fixtures");
+
+    let test_cases = [
+        "test-normal-text",
+        "test-italics",
+        "test-bold",
+        "test-strikethrough",
+        "test-png-image",
+        "test-svg-image",
+        "test-csv-table",
+        "test-inline-table",
+    ];
+
+    for test_case in test_cases {
+        let test_dir = fixtures_path.join(test_case);
+        assert!(
+            test_dir.join("sysdoc.toml").exists(),
+            "{} should have sysdoc.toml",
+            test_case
+        );
+        assert!(
+            test_dir.join("src/01_test.md").exists(),
+            "{} should have src/01_test.md",
+            test_case
+        );
+    }
+
+    // Check specific assets for image and table tests
+    assert!(
+        fixtures_path
+            .join("test-png-image/src/test-image.png")
+            .exists(),
+        "PNG test should have test-image.png"
+    );
+    assert!(
+        fixtures_path
+            .join("test-svg-image/src/test-image.drawio.svg")
+            .exists(),
+        "SVG test should have test-image.drawio.svg"
+    );
+    assert!(
+        fixtures_path
+            .join("test-csv-table/src/test-data.csv")
+            .exists(),
+        "CSV test should have test-data.csv"
+    );
+}
