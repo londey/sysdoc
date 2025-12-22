@@ -212,12 +212,15 @@ fn handle_build_command(
                     })?;
                     println!("Using docx-rust engine (template-based)");
                     docx_rust_exporter::to_docx(&unified_doc, template_path, &output)
-                        .with_context(|| format!("Failed to export DOCX to {}", output.display()))?;
+                        .with_context(|| {
+                            format!("Failed to export DOCX to {}", output.display())
+                        })?;
                 }
                 DocxEngine::DocxRs => {
                     println!("Using docx-rs engine (template-free)");
-                    docx_rs_exporter::to_docx(&unified_doc, &output)
-                        .with_context(|| format!("Failed to export DOCX to {}", output.display()))?;
+                    docx_rs_exporter::to_docx(&unified_doc, &output).with_context(|| {
+                        format!("Failed to export DOCX to {}", output.display())
+                    })?;
                 }
             }
             println!("✓ Successfully wrote: {}", output.display());

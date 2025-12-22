@@ -57,8 +57,7 @@ pub fn to_docx(doc: &UnifiedDocument, output_path: &Path) -> Result<(), ExportEr
 
     // Write the document
     log::info!("Writing DOCX to: {}", output_path.display());
-    let file =
-        std::fs::File::create(output_path).map_err(ExportError::IoError)?;
+    let file = std::fs::File::create(output_path).map_err(ExportError::IoError)?;
     docx.build()
         .pack(file)
         .map_err(|e| ExportError::FormatError(format!("Failed to write DOCX: {}", e)))?;
