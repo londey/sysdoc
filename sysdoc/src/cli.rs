@@ -16,10 +16,12 @@ pub enum OutputFormat {
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 pub enum DocxEngine {
     /// Use docx-rust library (requires template, better compatibility)
-    #[default]
     DocxRust,
     /// Use docx-rs library (no template needed, creates from scratch)
     DocxRs,
+    /// Use template-preserving exporter (preserves title page and styles)
+    #[default]
+    Template,
 }
 
 /// CLI structure for the sysdoc application
@@ -83,8 +85,8 @@ pub enum Commands {
         #[arg(long)]
         no_images: bool,
 
-        /// DOCX export engine (docx-rust requires template, docx-rs creates from scratch)
-        #[arg(long, value_enum, default_value = "docx-rust")]
+        /// DOCX export engine (template preserves styles, docx-rust/docx-rs are alternatives)
+        #[arg(long, value_enum, default_value = "template")]
         engine: DocxEngine,
     },
 
