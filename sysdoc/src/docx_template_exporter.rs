@@ -32,17 +32,20 @@ use zip::ZipWriter;
 /// Export errors
 #[derive(Debug)]
 pub enum ExportError {
-    IoError(std::io::Error),
-    ZipError(zip::result::ZipError),
-    FormatError(String),
+    /// I/O error during file operations
+    Io(std::io::Error),
+    /// ZIP archive error
+    Zip(zip::result::ZipError),
+    /// Document format error
+    Format(String),
 }
 
 impl std::fmt::Display for ExportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExportError::IoError(e) => write!(f, "IO error: {}", e),
-            ExportError::ZipError(e) => write!(f, "ZIP error: {}", e),
-            ExportError::FormatError(msg) => write!(f, "Format error: {}", msg),
+            ExportError::Io(e) => write!(f, "IO error: {}", e),
+            ExportError::Zip(e) => write!(f, "ZIP error: {}", e),
+            ExportError::Format(msg) => write!(f, "Format error: {}", msg),
         }
     }
 }
@@ -51,13 +54,13 @@ impl std::error::Error for ExportError {}
 
 impl From<std::io::Error> for ExportError {
     fn from(e: std::io::Error) -> Self {
-        ExportError::IoError(e)
+        ExportError::Io(e)
     }
 }
 
 impl From<zip::result::ZipError> for ExportError {
     fn from(e: zip::result::ZipError) -> Self {
-        ExportError::ZipError(e)
+        ExportError::Zip(e)
     }
 }
 
@@ -146,8 +149,8 @@ pub fn to_docx(
             contents
         };
 
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         output_zip.start_file(&name, options)?;
         output_zip.write_all(&modified_contents)?;
         written_files.insert(name);
@@ -164,8 +167,8 @@ pub fn to_docx(
         );
 
         if !written_files.contains(&media_path) {
-            let options = SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored); // Images don't compress well
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored); // Images don't compress well
             output_zip.start_file(&media_path, options)?;
             output_zip.write_all(&image_data.bytes)?;
         }
@@ -180,45 +183,54 @@ pub fn to_docx(
     Ok(())
 }
 
+/// Try to load image data from a path
+fn try_load_image(absolute_path: &Path, rel_id: usize) -> Option<ImageData> {
+    let bytes = std::fs::read(absolute_path).ok()?;
+    let extension = absolute_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+
+    let (width_emu, height_emu) = calculate_image_dimensions(&bytes);
+
+    Some(ImageData {
+        bytes,
+        extension,
+        rel_id: format!("rId{}", rel_id),
+        width_emu,
+        height_emu,
+    })
+}
+
 /// Collect and load all images from document sections
 fn collect_images(sections: &[MarkdownSection]) -> HashMap<PathBuf, ImageData> {
     let mut images = HashMap::new();
     let mut rel_id_counter = 100; // Start high to avoid conflicts
 
-    for section in sections {
-        for block in &section.content {
+    let image_blocks = sections
+        .iter()
+        .flat_map(|s| &s.content)
+        .filter_map(|block| {
             if let MarkdownBlock::Image {
                 absolute_path,
                 exists: true,
                 ..
             } = block
             {
-                if images.contains_key(absolute_path) {
-                    continue;
-                }
-
-                if let Ok(bytes) = std::fs::read(absolute_path) {
-                    let extension = absolute_path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("png")
-                        .to_lowercase();
-
-                    let (width_emu, height_emu) = calculate_image_dimensions(&bytes);
-
-                    images.insert(
-                        absolute_path.clone(),
-                        ImageData {
-                            bytes,
-                            extension,
-                            rel_id: format!("rId{}", rel_id_counter),
-                            width_emu,
-                            height_emu,
-                        },
-                    );
-                    rel_id_counter += 1;
-                }
+                Some(absolute_path)
+            } else {
+                None
             }
+        });
+
+    for absolute_path in image_blocks {
+        if images.contains_key(absolute_path) {
+            continue;
+        }
+        if let Some(image_data) = try_load_image(absolute_path, rel_id_counter) {
+            images.insert(absolute_path.clone(), image_data);
+            rel_id_counter += 1;
         }
     }
 
@@ -344,10 +356,7 @@ fn generate_indented_block_xml(
 
     match block {
         MarkdownBlock::Paragraph(runs) => {
-            let mut xml = format!(
-                r#"<w:p><w:pPr><w:ind w:left="{}"/></w:pPr>"#,
-                indent_twips
-            );
+            let mut xml = format!(r#"<w:p><w:pPr><w:ind w:left="{}"/></w:pPr>"#, indent_twips);
             for run in runs {
                 xml.push_str(&generate_run_xml(run));
             }
@@ -553,10 +562,7 @@ fn generate_table_cell_xml(runs: &[TextRun], alignment: Alignment, is_header: bo
         Alignment::Right => "right",
     };
 
-    let mut xml = format!(
-        r#"<w:tc><w:p><w:pPr><w:jc w:val="{}"/></w:pPr>"#,
-        align_val
-    );
+    let mut xml = format!(r#"<w:tc><w:p><w:pPr><w:jc w:val="{}"/></w:pPr>"#, align_val);
 
     for run in runs {
         let mut run_xml = String::from("<w:r><w:rPr>");
@@ -584,6 +590,40 @@ fn generate_table_cell_xml(runs: &[TextRun], alignment: Alignment, is_header: bo
     xml
 }
 
+/// Generate the marker for a list item
+fn generate_list_marker(is_ordered: bool, item_number: u64, is_first_block: bool) -> String {
+    if !is_first_block {
+        return String::new();
+    }
+    if is_ordered {
+        format!("{}.\t", item_number)
+    } else {
+        "•\t".to_string()
+    }
+}
+
+/// Generate OOXML for a list item paragraph
+fn generate_list_paragraph_xml(runs: &[TextRun], marker: &str, indent_twips: usize) -> String {
+    let mut xml = format!(
+        r#"<w:p><w:pPr><w:ind w:left="{}" w:hanging="360"/></w:pPr>"#,
+        indent_twips
+    );
+
+    if !marker.is_empty() {
+        xml.push_str(&format!(
+            r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+            escape_xml(marker)
+        ));
+    }
+
+    for run in runs {
+        xml.push_str(&generate_run_xml(run));
+    }
+
+    xml.push_str("</w:p>");
+    xml
+}
+
 /// Generate OOXML for a list
 fn generate_list_xml(
     start: &Option<u64>,
@@ -598,58 +638,55 @@ fn generate_list_xml(
 
     for (idx, item) in items.iter().enumerate() {
         let item_number = start_num + idx as u64;
+        xml.push_str(&generate_list_item_xml(
+            item,
+            is_ordered,
+            item_number,
+            indent_twips,
+            indent_level,
+            images,
+        ));
+    }
 
-        for (block_idx, block) in item.content.iter().enumerate() {
-            let is_first_block = block_idx == 0;
+    xml
+}
 
-            match block {
-                MarkdownBlock::Paragraph(runs) => {
-                    let marker = if is_first_block {
-                        if is_ordered {
-                            format!("{}.\t", item_number)
-                        } else {
-                            "•\t".to_string()
-                        }
-                    } else {
-                        String::new()
-                    };
+/// Generate OOXML for a single list item
+fn generate_list_item_xml(
+    item: &ListItem,
+    is_ordered: bool,
+    item_number: u64,
+    indent_twips: usize,
+    indent_level: usize,
+    images: &HashMap<PathBuf, ImageData>,
+) -> String {
+    let mut xml = String::new();
 
-                    xml.push_str(&format!(
-                        r#"<w:p><w:pPr><w:ind w:left="{}" w:hanging="360"/></w:pPr>"#,
-                        indent_twips
-                    ));
+    for (block_idx, block) in item.content.iter().enumerate() {
+        let is_first_block = block_idx == 0;
 
-                    if !marker.is_empty() {
-                        xml.push_str(&format!(
-                            r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
-                            escape_xml(&marker)
-                        ));
-                    }
-
-                    for run in runs {
-                        xml.push_str(&generate_run_xml(run));
-                    }
-
-                    xml.push_str("</w:p>");
-                }
-                MarkdownBlock::List {
-                    start: nested_start,
-                    items: nested_items,
-                } => {
-                    xml.push_str(&generate_list_xml(
-                        nested_start,
-                        nested_items,
-                        indent_level + 1,
-                        images,
-                    ));
-                }
-                _ => {
-                    xml.push_str(&generate_indented_block_xml(
-                        block,
-                        indent_level + 1,
-                        images,
-                    ));
-                }
+        match block {
+            MarkdownBlock::Paragraph(runs) => {
+                let marker = generate_list_marker(is_ordered, item_number, is_first_block);
+                xml.push_str(&generate_list_paragraph_xml(runs, &marker, indent_twips));
+            }
+            MarkdownBlock::List {
+                start: nested_start,
+                items: nested_items,
+            } => {
+                xml.push_str(&generate_list_xml(
+                    nested_start,
+                    nested_items,
+                    indent_level + 1,
+                    images,
+                ));
+            }
+            _ => {
+                xml.push_str(&generate_indented_block_xml(
+                    block,
+                    indent_level + 1,
+                    images,
+                ));
             }
         }
     }
@@ -716,7 +753,7 @@ fn inject_content_into_document_xml(
         result.push_str(&xml_str[body_close_pos..]);
         Ok(result.into_bytes())
     } else {
-        Err(ExportError::FormatError(
+        Err(ExportError::Format(
             "Could not find </w:body> in document.xml".to_string(),
         ))
     }
@@ -757,7 +794,7 @@ fn add_image_relationships(
         result.push_str("</Relationships>");
         Ok(result.into_bytes())
     } else {
-        Err(ExportError::FormatError(
+        Err(ExportError::Format(
             "Could not find </Relationships> in document.xml.rels".to_string(),
         ))
     }
@@ -807,7 +844,7 @@ fn ensure_image_content_types(
         result.push_str("</Types>");
         Ok(result.into_bytes())
     } else {
-        Err(ExportError::FormatError(
+        Err(ExportError::Format(
             "Could not find </Types> in [Content_Types].xml".to_string(),
         ))
     }
