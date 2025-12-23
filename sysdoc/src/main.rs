@@ -30,6 +30,7 @@ mod unified_document;
 // DOCX exporters (allows swapping between docx-rust and docx-rs implementations)
 mod docx_rs_exporter;
 mod docx_rust_exporter;
+mod docx_template_exporter;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -221,6 +222,18 @@ fn handle_build_command(
                     docx_rs_exporter::to_docx(&unified_doc, &output).with_context(|| {
                         format!("Failed to export DOCX to {}", output.display())
                     })?;
+                }
+                DocxEngine::Template => {
+                    let template_path = docx_template_path.as_ref().ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "DOCX export with template engine requires a template. Set 'docx_template_path' in sysdoc.toml"
+                        )
+                    })?;
+                    println!("Using template-preserving engine (preserves title page and styles)");
+                    docx_template_exporter::to_docx(&unified_doc, template_path, &output)
+                        .with_context(|| {
+                            format!("Failed to export DOCX to {}", output.display())
+                        })?;
                 }
             }
             println!("✓ Successfully wrote: {}", output.display());
