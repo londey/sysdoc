@@ -54,6 +54,24 @@ pub fn get_all_templates() -> Vec<TemplateInfo> {
             spec: "DI-MISC-80508B".to_string(),
             content: include_str!("templates/tr-standard-v1.toml"),
         },
+        TemplateInfo {
+            id: "stp-standard-v1".to_string(),
+            doc_type: "STP".to_string(),
+            spec: "DI-IPSC-81438".to_string(),
+            content: include_str!("templates/stp-standard-v1.toml"),
+        },
+        TemplateInfo {
+            id: "std-standard-v1".to_string(),
+            doc_type: "STD".to_string(),
+            spec: "DI-IPSC-81439".to_string(),
+            content: include_str!("templates/std-standard-v1.toml"),
+        },
+        TemplateInfo {
+            id: "str-standard-v1".to_string(),
+            doc_type: "STR".to_string(),
+            spec: "DI-IPSC-81440".to_string(),
+            content: include_str!("templates/str-standard-v1.toml"),
+        },
     ]
 }
 
@@ -103,7 +121,7 @@ mod tests {
     #[test]
     fn test_all_templates_load() {
         let templates = get_all_templates();
-        assert_eq!(templates.len(), 5);
+        assert_eq!(templates.len(), 8);
     }
 
     #[test]
@@ -113,6 +131,9 @@ mod tests {
         assert!(get_template("ssdd-standard-v1").is_some());
         assert!(get_template("sss-standard-v1").is_some());
         assert!(get_template("tr-standard-v1").is_some());
+        assert!(get_template("stp-standard-v1").is_some());
+        assert!(get_template("std-standard-v1").is_some());
+        assert!(get_template("str-standard-v1").is_some());
     }
 
     #[test]
@@ -125,6 +146,12 @@ mod tests {
         assert!(get_template("SSS").is_some());
         assert!(get_template("TR").is_some());
         assert!(get_template("tr").is_some());
+        assert!(get_template("STP").is_some());
+        assert!(get_template("stp").is_some());
+        assert!(get_template("STD").is_some());
+        assert!(get_template("std").is_some());
+        assert!(get_template("STR").is_some());
+        assert!(get_template("str").is_some());
     }
 
     #[test]
@@ -134,6 +161,9 @@ mod tests {
         assert!(get_template("DI-IPSC-81437A").is_some());
         assert!(get_template("DI-IPSC-81431A").is_some());
         assert!(get_template("DI-MISC-80508B").is_some());
+        assert!(get_template("DI-IPSC-81438").is_some());
+        assert!(get_template("DI-IPSC-81439").is_some());
+        assert!(get_template("DI-IPSC-81440").is_some());
     }
 
     #[test]

@@ -1,0 +1,448 @@
+name = "std-standard-v1"
+document_type = "STD"
+template_spec = "DI-IPSC-81439"
+
+# =============================================================================
+# Configuration file
+# =============================================================================
+
+[files."sysdoc.toml"]
+content = """
+document_id = "STD-XXX"
+document_name = "Software Test Description"
+document_type = "STD"
+document_standard = "DI-IPSC-81439"
+document_template = "std-standard-v1"
+
+[document_owner]
+name = "Your Name"
+email = "your.email@example.com"
+
+[document_approver]
+name = "Approver Name"
+email = "approver@example.com"
+"""
+
+# =============================================================================
+# Git ignore
+# =============================================================================
+
+[files.".gitignore"]
+content = """
+build/
+*.docx
+*.pdf
+.DS_Store
+"""
+
+# =============================================================================
+# README
+# =============================================================================
+
+[files."README.md"]
+content = """
+# Software Test Description (STD)
+
+This document follows DI-IPSC-81439 - Software Test Description.
+
+## Purpose
+
+The Software Test Description (STD) describes test cases and test procedures to be
+used to perform qualification testing of a Computer Software Configuration Item (CSCI)
+or software system. It provides detailed test cases, test procedures, and the expected
+results for each test identified in the Software Test Plan (STP).
+
+## Building
+
+Run `sysdoc build` to generate the final document.
+
+## Structure
+
+- `src/01_scope/` - Identification, system overview, document overview, Section 508 compliance
+- `src/02_referenced_documents/` - Referenced documents
+- `src/03_test_preparations/` - Hardware preparation, software preparation, other pre-test preparations
+- `src/04_test_descriptions/` - Detailed test cases and procedures
+- `src/05_requirements_traceability/` - Requirements traceability
+- `src/06_notes/` - General information, acronyms, glossary
+- `src/appendices/` - Appendices
+
+## Related Documents
+
+- Software Test Plan (STP) - DI-IPSC-81438
+- Software Test Report (STR) - DI-IPSC-81440
+- Software Requirements Specification (SRS) - DI-IPSC-81433
+"""
+
+# =============================================================================
+# SECTION 1: SCOPE
+# =============================================================================
+
+[files."src/01_scope/01.00_scope.md"]
+heading = "Scope"
+guidance = """
+1. Scope. This section shall be divided into the following paragraphs.
+"""
+
+[files."src/01_scope/01.01_system_identification.md"]
+heading = "System Identification"
+guidance = """
+1.1. System Identification. This paragraph shall contain a full identification of the
+system and the software to which this document applies, including, as applicable:
+
+a) Identification number(s)
+b) Title(s)
+c) Abbreviation(s)
+d) Version number(s)
+e) Release number(s)
+"""
+
+[files."src/01_scope/01.02_system_overview.md"]
+heading = "System overview"
+guidance = """
+1.2. System overview. This paragraph shall briefly state the purpose of the system and the
+software to which this document applies. It shall describe the general nature of the system and
+software; summarize the history of system development, operation, and maintenance; identify
+the project sponsor, acquirer, user, developer, and support agencies; identify current and planned
+operating sites; and list other relevant documents.
+"""
+
+[files."src/01_scope/01.03_document_overview.md"]
+heading = "Document overview"
+guidance = """
+1.3. Document overview. This paragraph shall summarize the purpose and contents of this
+document and shall describe any security or privacy considerations associated with its use.
+"""
+
+[files."src/01_scope/01.04_section_508_accessibility.md"]
+heading = "Section 508, IT Accessibility"
+guidance = """
+1.4. Section 508, IT Accessibility. Usability will be in compliance with the Section 508
+Amendment of the Rehabilitation Act of 1973.
+"""
+
+# =============================================================================
+# SECTION 2: REFERENCED DOCUMENTS
+# =============================================================================
+
+[files."src/02_referenced_documents/02.00_referenced_documents.md"]
+heading = "Referenced documents"
+guidance = """
+2. Referenced documents. This section shall list the number, title, revision, and date of
+all documents referenced in this document. This section shall also identify the source for
+all referenced documents not available through Government sources.
+"""
+
+# =============================================================================
+# SECTION 3: TEST PREPARATIONS
+# =============================================================================
+
+[files."src/03_test_preparations/03.00_test_preparations.md"]
+heading = "Test preparations"
+guidance = """
+3. Test preparations. This section shall be divided into the following paragraphs.
+Async appropriate, reference may be made to the Software Test Plan (STP) for
+information previously provided.
+"""
+
+[files."src/03_test_preparations/03.01_hardware_preparation.md"]
+heading = "Hardware preparation"
+guidance = """
+3.1. Hardware preparation. This paragraph shall describe the procedures necessary
+to prepare the hardware for the tests. Reference may be made to published operating
+manuals for these procedures. The following shall be provided, as applicable:
+
+a. The specific hardware to be used, identified by name and, if applicable, number
+
+b. Any hardware setup or initialization needed
+
+c. Hardware configurations to be used
+
+d. Diagrams of the setup, if useful
+
+e. Step-by-step instructions for hardware preparation
+"""
+
+[files."src/03_test_preparations/03.02_software_preparation.md"]
+heading = "Software preparation"
+guidance = """
+3.2. Software preparation. This paragraph shall describe the procedures necessary
+to prepare the software for the tests. Reference may be made to published software
+manuals for these procedures. The following shall be provided, as applicable:
+
+a. The specific software to be used in the tests, identified by name, version,
+   and configuration
+
+b. Any software setup or initialization needed, including loading of databases,
+   data files, or other software
+
+c. Software configurations to be used
+
+d. Step-by-step instructions for software preparation
+
+e. Any drivers, stubs, or test harnesses required
+"""
+
+[files."src/03_test_preparations/03.03_other_pre_test_preparations.md"]
+heading = "Other pre-test preparations"
+guidance = """
+3.3. Other pre-test preparations. This paragraph shall describe any other pre-test
+preparation activities and procedures. This includes:
+
+a. Any special test data to be prepared or obtained
+
+b. Any special permissions or access rights needed
+
+c. Any coordination required with other organizations
+
+d. Any special personnel requirements
+
+e. Any other preparation activities
+"""
+
+# =============================================================================
+# SECTION 4: TEST DESCRIPTIONS
+# =============================================================================
+
+[files."src/04_test_descriptions/04.00_test_descriptions.md"]
+heading = "Test descriptions"
+guidance = """
+4. Test descriptions. This section shall be divided into the following paragraphs to
+describe the test cases and test procedures. Each test case shall be identified with
+a unique identifier that can be traced to the Software Test Plan (STP).
+"""
+
+[files."src/04_test_descriptions/04.01_test_case_template.md"]
+heading = "Test case (identifier)"
+guidance = """
+4.x. (Test identifier). This paragraph shall identify a test by project-unique
+identifier, shall provide a brief description, and shall be divided into the
+following subparagraphs.
+
+NOTE: Copy this section for each test case. Replace (identifier) with the actual
+test identifier from the Software Test Plan.
+"""
+
+[files."src/04_test_descriptions/04.01.01_requirements_addressed.md"]
+heading = "Requirements addressed"
+guidance = """
+4.x.1. Requirements addressed. This paragraph shall identify the CSCI requirements
+or system requirements addressed by this test. Each requirement shall be identified
+by its unique identifier from the requirements document.
+
+| Requirement ID | Requirement Title |
+|----------------|-------------------|
+| REQ-XXX        | [Requirement name] |
+"""
+
+[files."src/04_test_descriptions/04.01.02_prerequisite_conditions.md"]
+heading = "Prerequisite conditions"
+guidance = """
+4.x.2. Prerequisite conditions. This paragraph shall identify any prerequisite
+conditions that must be established prior to performing this test. These include:
+
+a. Hardware prerequisites (specific configurations, states, or conditions)
+
+b. Software prerequisites (specific versions, configurations, or states)
+
+c. Data prerequisites (specific data that must be present)
+
+d. Personnel prerequisites (specific skills or clearances required)
+
+e. Other prerequisites (environmental conditions, timing, etc.)
+
+f. Any prerequisite tests that must be completed successfully
+"""
+
+[files."src/04_test_descriptions/04.01.03_test_inputs.md"]
+heading = "Test inputs"
+guidance = """
+4.x.3. Test inputs. This paragraph shall describe the test inputs required for
+this test. For each input, the following shall be provided:
+
+a. Name and identifier of the input
+
+b. Source of the input (e.g., user input, file, database, external system)
+
+c. Format and structure of the input
+
+d. Valid ranges or values
+
+e. The specific values to be used for this test
+
+f. Any timing or sequencing requirements for the inputs
+"""
+
+[files."src/04_test_descriptions/04.01.04_expected_results.md"]
+heading = "Expected results"
+guidance = """
+4.x.4. Expected results. This paragraph shall identify all expected results
+for this test. For each expected result, the following shall be provided:
+
+a. Name and identifier of the output or result
+
+b. Expected value or range of values
+
+c. Format and structure of the output
+
+d. Where the output will appear (screen, file, database, etc.)
+
+e. Any timing requirements for the output
+
+f. Tolerances or acceptable variations
+"""
+
+[files."src/04_test_descriptions/04.01.05_criteria_for_evaluating_results.md"]
+heading = "Criteria for evaluating results"
+guidance = """
+4.x.5. Criteria for evaluating results. This paragraph shall identify the criteria
+to be used for evaluating the results. The criteria shall be specific enough to
+allow objective determination of pass/fail. Include:
+
+a. Pass criteria - specific conditions that must be met to pass
+
+b. Fail criteria - specific conditions that constitute failure
+
+c. Any tolerances or acceptable deviations
+
+d. Methods for comparing actual results to expected results
+
+e. Any tools or techniques to be used for evaluation
+"""
+
+[files."src/04_test_descriptions/04.01.06_test_procedure.md"]
+heading = "Test procedure"
+guidance = """
+4.x.6. Test procedure. This paragraph shall define the test procedure for this
+test. The procedure shall be presented as step-by-step instructions in sufficient
+detail to allow the test to be repeated by different personnel. Include:
+
+a. Step number
+
+b. Action to be performed
+
+c. Expected system response (if applicable)
+
+d. Any branching logic (if step X fails, go to step Y)
+
+e. Data to be recorded at each step
+
+f. Any cautions or warnings
+
+Example format:
+
+| Step | Action | Expected Response | Pass/Fail |
+|------|--------|-------------------|-----------|
+| 1    | [Action description] | [Expected response] | [ ] |
+| 2    | [Action description] | [Expected response] | [ ] |
+"""
+
+[files."src/04_test_descriptions/04.01.07_assumptions_and_constraints.md"]
+heading = "Assumptions and constraints"
+guidance = """
+4.x.7. Assumptions and constraints. This paragraph shall identify any assumptions
+and constraints associated with this test:
+
+a. Assumptions about the test environment
+
+b. Assumptions about the state of the software
+
+c. Constraints on test execution (timing, resources, etc.)
+
+d. Limitations of the test (what is not being tested)
+
+e. Any risks or issues that may affect test execution
+"""
+
+[files."src/04_test_descriptions/04.01.08_safety_security_privacy.md"]
+heading = "Safety, security, and privacy considerations"
+guidance = """
+4.x.8. Safety, security, and privacy considerations. This paragraph shall identify
+any safety, security, and privacy considerations for this test:
+
+a. Any safety hazards and precautions
+
+b. Security classification or handling requirements
+
+c. Privacy considerations for test data
+
+d. Any special access controls required
+
+e. Data handling and disposal requirements
+"""
+
+# =============================================================================
+# SECTION 5: REQUIREMENTS TRACEABILITY
+# =============================================================================
+
+[files."src/05_requirements_traceability/05.00_requirements_traceability.md"]
+heading = "Requirements traceability"
+guidance = """
+5. Requirements traceability. This section shall contain:
+
+a. Traceability from each test case identified in this STD to the requirement(s)
+   it addresses.
+
+b. Traceability from each requirement to the test case(s) that address it.
+
+c. Identification of any requirements that are not addressed by any test case,
+   with justification for why they are not tested.
+
+| Requirement ID | Test Case ID(s) | Notes |
+|----------------|-----------------|-------|
+| REQ-001        | TC-001, TC-002  |       |
+| REQ-002        | TC-003          |       |
+"""
+
+# =============================================================================
+# SECTION 6: NOTES
+# =============================================================================
+
+[files."src/06_notes/06.00_notes.md"]
+heading = "Notes"
+guidance = """
+6. Notes. This section shall contain any general information that aids in understanding
+this document (e.g., background information, glossary, rationale). This section shall include
+an alphabetical listing of all acronyms, abbreviations, and their meanings as used in this
+document and a list of any terms and definitions needed to understand this STD.
+"""
+
+[files."src/06_notes/06.01_acronyms_and_abbreviations.md"]
+heading = "Acronyms and abbreviations"
+guidance = """
+This paragraph shall include an alphabetical listing of all acronyms, abbreviations, and their
+meanings as used in this document.
+
+| Acronym | Definition |
+|---------|------------|
+| CSCI | Computer Software Configuration Item |
+| STD | Software Test Description |
+| STP | Software Test Plan |
+| STR | Software Test Report |
+"""
+
+[files."src/06_notes/06.02_glossary.md"]
+heading = "Glossary"
+guidance = """
+This paragraph shall include a list of any terms and definitions needed to understand this document.
+"""
+
+# =============================================================================
+# APPENDICES
+# =============================================================================
+
+[files."src/appendices/appendix_a.md"]
+heading = "Appendix A"
+guidance = """
+Appendixes. Appendices may be used to provide information published separately for
+convenience in document maintenance (e.g., charts, classified data). As applicable, each
+appendix shall be referenced in the main body of the document where the data would normally
+have been provided. Appendices may be bound as separate documents for ease in handling.
+Appendices shall be lettered alphabetically (A, B, etc.).
+
+Common appendices for an STD include:
+
+- Test data files
+- Sample outputs
+- Test scripts
+- Detailed test matrices
+"""

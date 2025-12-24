@@ -1,0 +1,448 @@
+name = "str-standard-v1"
+document_type = "STR"
+template_spec = "DI-IPSC-81440"
+
+# =============================================================================
+# Configuration file
+# =============================================================================
+
+[files."sysdoc.toml"]
+content = """
+document_id = "STR-XXX"
+document_name = "Software Test Report"
+document_type = "STR"
+document_standard = "DI-IPSC-81440"
+document_template = "str-standard-v1"
+
+[document_owner]
+name = "Your Name"
+email = "your.email@example.com"
+
+[document_approver]
+name = "Approver Name"
+email = "approver@example.com"
+"""
+
+# =============================================================================
+# Git ignore
+# =============================================================================
+
+[files.".gitignore"]
+content = """
+build/
+*.docx
+*.pdf
+.DS_Store
+"""
+
+# =============================================================================
+# README
+# =============================================================================
+
+[files."README.md"]
+content = """
+# Software Test Report (STR)
+
+This document follows DI-IPSC-81440 - Software Test Report.
+
+## Purpose
+
+The Software Test Report (STR) records the results of qualification testing
+performed on a Computer Software Configuration Item (CSCI) or software system.
+It documents the test results, identifies any deviations from expected results,
+and provides an assessment of the software's qualification status.
+
+## Building
+
+Run `sysdoc build` to generate the final document.
+
+## Structure
+
+- `src/01_scope/` - Identification, system overview, document overview, Section 508 compliance
+- `src/02_referenced_documents/` - Referenced documents
+- `src/03_overview_of_test_results/` - Overall assessment, test environment, summary of results
+- `src/04_detailed_test_results/` - Individual test results
+- `src/05_test_log/` - Chronological record of test activities
+- `src/06_requirements_traceability/` - Requirements traceability
+- `src/07_notes/` - General information, acronyms, glossary
+- `src/appendices/` - Appendices
+
+## Related Documents
+
+- Software Test Plan (STP) - DI-IPSC-81438
+- Software Test Description (STD) - DI-IPSC-81439
+- Software Requirements Specification (SRS) - DI-IPSC-81433
+"""
+
+# =============================================================================
+# SECTION 1: SCOPE
+# =============================================================================
+
+[files."src/01_scope/01.00_scope.md"]
+heading = "Scope"
+guidance = """
+1. Scope. This section shall be divided into the following paragraphs.
+"""
+
+[files."src/01_scope/01.01_system_identification.md"]
+heading = "System Identification"
+guidance = """
+1.1. System Identification. This paragraph shall contain a full identification of the
+system and the software to which this document applies, including, as applicable:
+
+a) Identification number(s)
+b) Title(s)
+c) Abbreviation(s)
+d) Version number(s)
+e) Release number(s)
+"""
+
+[files."src/01_scope/01.02_system_overview.md"]
+heading = "System overview"
+guidance = """
+1.2. System overview. This paragraph shall briefly state the purpose of the system and the
+software to which this document applies. It shall describe the general nature of the system and
+software; summarize the history of system development, operation, and maintenance; identify
+the project sponsor, acquirer, user, developer, and support agencies; identify current and planned
+operating sites; and list other relevant documents.
+"""
+
+[files."src/01_scope/01.03_document_overview.md"]
+heading = "Document overview"
+guidance = """
+1.3. Document overview. This paragraph shall summarize the purpose and contents of this
+document and shall describe any security or privacy considerations associated with its use.
+"""
+
+[files."src/01_scope/01.04_section_508_accessibility.md"]
+heading = "Section 508, IT Accessibility"
+guidance = """
+1.4. Section 508, IT Accessibility. Usability will be in compliance with the Section 508
+Amendment of the Rehabilitation Act of 1973.
+"""
+
+# =============================================================================
+# SECTION 2: REFERENCED DOCUMENTS
+# =============================================================================
+
+[files."src/02_referenced_documents/02.00_referenced_documents.md"]
+heading = "Referenced documents"
+guidance = """
+2. Referenced documents. This section shall list the number, title, revision, and date of
+all documents referenced in this document. This section shall also identify the source for
+all referenced documents not available through Government sources.
+"""
+
+# =============================================================================
+# SECTION 3: OVERVIEW OF TEST RESULTS
+# =============================================================================
+
+[files."src/03_overview_of_test_results/03.00_overview_of_test_results.md"]
+heading = "Overview of test results"
+guidance = """
+3. Overview of test results. This section shall be divided into the following paragraphs
+to provide an overview of the test results.
+"""
+
+[files."src/03_overview_of_test_results/03.01_overall_assessment.md"]
+heading = "Overall assessment of the software tested"
+guidance = """
+3.1. Overall assessment of the software tested. This paragraph shall:
+
+a. Provide an overall assessment of the software tested with respect to each
+   qualification requirement listed in the Software Test Plan (STP)
+
+b. Identify any deviations from the STP and provide the rationale for each
+
+c. Summarize the quantity of tests conducted, passed, failed, and not executed
+
+d. Identify any limitations or constraints that affected testing
+
+e. Provide an overall recommendation regarding the qualification status of the
+   software (e.g., qualified, conditionally qualified, not qualified)
+"""
+
+[files."src/03_overview_of_test_results/03.02_test_environment.md"]
+heading = "Test environment"
+guidance = """
+3.2. Test environment. This paragraph shall identify any differences between the
+test environment used and the test environment specified in the STP, STD, or other
+documents. It shall describe:
+
+a. Hardware differences (if any)
+
+b. Software differences (if any)
+
+c. Personnel differences (if any)
+
+d. Facility differences (if any)
+
+e. Impact of any differences on test results
+"""
+
+[files."src/03_overview_of_test_results/03.03_summary_of_test_results.md"]
+heading = "Summary of test results"
+guidance = """
+3.3. Summary of test results. This paragraph shall summarize the test results
+for each test class or category defined in the STP. For each test class, provide:
+
+a. Number of tests planned
+
+b. Number of tests executed
+
+c. Number of tests passed
+
+d. Number of tests failed
+
+e. Number of tests not executed (with explanation)
+
+| Test Class | Planned | Executed | Passed | Failed | Not Run |
+|------------|---------|----------|--------|--------|---------|
+| Requirement Coverage | | | | | |
+| Boundary/Limit | | | | | |
+| Stress | | | | | |
+| Error Recovery | | | | | |
+| Security | | | | | |
+| Performance | | | | | |
+| **Total** | | | | | |
+"""
+
+[files."src/03_overview_of_test_results/03.04_deficiencies_and_deviations.md"]
+heading = "Deficiencies and deviations"
+guidance = """
+3.4. Deficiencies and deviations. This paragraph shall summarize all deficiencies
+and deviations identified during testing:
+
+a. Summary of test failures and their root causes
+
+b. Software defects discovered during testing
+
+c. Deviations from planned test procedures
+
+d. Waivers granted during testing
+
+e. Status of corrective actions (open, in progress, closed)
+
+| ID | Description | Severity | Status | Resolution |
+|----|-------------|----------|--------|------------|
+| | | | | |
+"""
+
+# =============================================================================
+# SECTION 4: DETAILED TEST RESULTS
+# =============================================================================
+
+[files."src/04_detailed_test_results/04.00_detailed_test_results.md"]
+heading = "Detailed test results"
+guidance = """
+4. Detailed test results. This section shall be divided into paragraphs to present
+the detailed results of each test. Each test result shall be traceable to the
+corresponding test case in the Software Test Description (STD).
+"""
+
+[files."src/04_detailed_test_results/04.01_test_result_template.md"]
+heading = "Test result (identifier)"
+guidance = """
+4.x. (Test identifier). This paragraph shall identify the test by the same
+project-unique identifier used in the STD and STP, and shall be divided into the
+following subparagraphs.
+
+NOTE: Copy this section for each test. Replace (identifier) with the actual
+test identifier from the Software Test Description.
+"""
+
+[files."src/04_detailed_test_results/04.01.01_test_summary.md"]
+heading = "Summary"
+guidance = """
+4.x.1. Summary. This paragraph shall summarize the test, including:
+
+a. Test identifier and name
+
+b. Date(s) and time(s) of test execution
+
+c. Test location/site
+
+d. Test personnel
+
+e. Overall result (Pass/Fail/Not Executed)
+"""
+
+[files."src/04_detailed_test_results/04.01.02_test_execution.md"]
+heading = "Test execution"
+guidance = """
+4.x.2. Test execution. This paragraph shall describe the actual test execution:
+
+a. Deviations from the test procedure in the STD (if any)
+
+b. Problems encountered during test execution
+
+c. Test inputs actually used (if different from STD)
+
+d. Actual conditions during test execution
+"""
+
+[files."src/04_detailed_test_results/04.01.03_actual_results.md"]
+heading = "Actual results"
+guidance = """
+4.x.3. Actual results. This paragraph shall document the actual results
+obtained during test execution:
+
+a. Observed outputs and behavior
+
+b. Measured values (response times, resource utilization, etc.)
+
+c. Screen captures, log files, or other evidence (reference appendices if large)
+
+d. Comparison of actual results to expected results from the STD
+"""
+
+[files."src/04_detailed_test_results/04.01.04_pass_fail_determination.md"]
+heading = "Pass/fail determination"
+guidance = """
+4.x.4. Pass/fail determination. This paragraph shall provide the pass/fail
+determination for the test:
+
+a. Final determination: PASS / FAIL / CONDITIONAL PASS / NOT EXECUTED
+
+b. Evaluation against the pass/fail criteria from the STD
+
+c. For failures: description of the failure and analysis of the cause
+
+d. For conditional passes: description of conditions and limitations
+
+e. For not executed: reason why the test was not executed
+"""
+
+[files."src/04_detailed_test_results/04.01.05_deficiency_reports.md"]
+heading = "Deficiency reports"
+guidance = """
+4.x.5. Deficiency reports. This paragraph shall identify any deficiency
+reports (problem reports, discrepancy reports, etc.) generated as a result
+of this test:
+
+a. Deficiency report identifier(s)
+
+b. Brief description of each deficiency
+
+c. Severity/priority classification
+
+d. Current status
+
+| Report ID | Description | Severity | Status |
+|-----------|-------------|----------|--------|
+| | | | |
+"""
+
+# =============================================================================
+# SECTION 5: TEST LOG
+# =============================================================================
+
+[files."src/05_test_log/05.00_test_log.md"]
+heading = "Test log"
+guidance = """
+5. Test log. This section shall provide a chronological record of significant
+events that occurred during testing. The log shall include:
+
+a. Date and time of each entry
+
+b. Description of the event or activity
+
+c. Personnel involved
+
+d. Results or outcomes
+
+e. Any issues or anomalies
+
+| Date/Time | Event | Personnel | Result | Notes |
+|-----------|-------|-----------|--------|-------|
+| | Test environment setup complete | | | |
+| | Test execution started | | | |
+| | Test TC-001 executed | | Pass | |
+| | Test TC-002 executed | | Fail | See DR-001 |
+| | Testing suspended | | | Hardware failure |
+| | Testing resumed | | | |
+| | Test execution completed | | | |
+"""
+
+# =============================================================================
+# SECTION 6: REQUIREMENTS TRACEABILITY
+# =============================================================================
+
+[files."src/06_requirements_traceability/06.00_requirements_traceability.md"]
+heading = "Requirements traceability"
+guidance = """
+6. Requirements traceability. This section shall provide traceability between
+requirements, test cases, and test results:
+
+a. Traceability from each requirement to its test result(s)
+
+b. Traceability from each test result to the requirement(s) it addresses
+
+c. Identification of any requirements not verified, with justification
+
+d. Summary of verification status for all requirements
+
+| Requirement ID | Test Case ID | Test Result | Status |
+|----------------|--------------|-------------|--------|
+| REQ-001 | TC-001 | Pass | Verified |
+| REQ-002 | TC-002 | Fail | Not Verified |
+| REQ-003 | TC-003, TC-004 | Pass, Pass | Verified |
+| REQ-004 | N/A | N/A | Waived - See Waiver W-001 |
+"""
+
+# =============================================================================
+# SECTION 7: NOTES
+# =============================================================================
+
+[files."src/07_notes/07.00_notes.md"]
+heading = "Notes"
+guidance = """
+7. Notes. This section shall contain any general information that aids in understanding
+this document (e.g., background information, glossary, rationale). This section shall include
+an alphabetical listing of all acronyms, abbreviations, and their meanings as used in this
+document and a list of any terms and definitions needed to understand this STR.
+"""
+
+[files."src/07_notes/07.01_acronyms_and_abbreviations.md"]
+heading = "Acronyms and abbreviations"
+guidance = """
+This paragraph shall include an alphabetical listing of all acronyms, abbreviations, and their
+meanings as used in this document.
+
+| Acronym | Definition |
+|---------|------------|
+| CSCI | Computer Software Configuration Item |
+| DR | Deficiency Report |
+| STD | Software Test Description |
+| STP | Software Test Plan |
+| STR | Software Test Report |
+"""
+
+[files."src/07_notes/07.02_glossary.md"]
+heading = "Glossary"
+guidance = """
+This paragraph shall include a list of any terms and definitions needed to understand this document.
+"""
+
+# =============================================================================
+# APPENDICES
+# =============================================================================
+
+[files."src/appendices/appendix_a.md"]
+heading = "Appendix A"
+guidance = """
+Appendixes. Appendices may be used to provide information published separately for
+convenience in document maintenance (e.g., charts, classified data). As applicable, each
+appendix shall be referenced in the main body of the document where the data would normally
+have been provided. Appendices may be bound as separate documents for ease in handling.
+Appendices shall be lettered alphabetically (A, B, etc.).
+
+Common appendices for an STR include:
+
+- Detailed test logs
+- Screen captures and output files
+- Deficiency reports
+- Test data and results files
+- Performance measurement data
+- Analysis reports
+"""
