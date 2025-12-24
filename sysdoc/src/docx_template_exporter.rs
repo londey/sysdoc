@@ -501,6 +501,12 @@ fn generate_image_xml(image_data: &ImageData, alt_text: &str, title: &str) -> St
 
 /// Generate OOXML for a table from CSV data
 fn generate_table_xml(data: &[Vec<String>]) -> String {
+    if data.is_empty() {
+        return String::new();
+    }
+
+    let num_cols = data.first().map(|r| r.len()).unwrap_or(0);
+
     let mut xml = String::from(
         r#"<w:tbl>
   <w:tblPr>
@@ -513,8 +519,15 @@ fn generate_table_xml(data: &[Vec<String>]) -> String {
       <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
       <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
     </w:tblBorders>
-  </w:tblPr>"#,
+  </w:tblPr>
+  <w:tblGrid>"#,
     );
+
+    // Add grid columns (required for valid OOXML)
+    for _ in 0..num_cols {
+        xml.push_str("<w:gridCol/>");
+    }
+    xml.push_str("</w:tblGrid>");
 
     for (row_idx, row) in data.iter().enumerate() {
         let is_header = row_idx == 0;
@@ -547,6 +560,8 @@ fn generate_inline_table_xml(
     headers: &[Vec<TextRun>],
     rows: &[Vec<Vec<TextRun>>],
 ) -> String {
+    let num_cols = headers.len();
+
     let mut xml = String::from(
         r#"<w:tbl>
   <w:tblPr>
@@ -559,8 +574,15 @@ fn generate_inline_table_xml(
       <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
       <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
     </w:tblBorders>
-  </w:tblPr>"#,
+  </w:tblPr>
+  <w:tblGrid>"#,
     );
+
+    // Add grid columns (required for valid OOXML)
+    for _ in 0..num_cols {
+        xml.push_str("<w:gridCol/>");
+    }
+    xml.push_str("</w:tblGrid>");
 
     // Header row
     xml.push_str("<w:tr>");
@@ -839,11 +861,10 @@ fn ensure_required_styles(styles_xml: &[u8]) -> Result<Vec<u8>, ExportError> {
         return Ok(styles_xml.to_vec());
     }
 
-    // Caption style definition - italic, centered, 10pt, based on Normal
+    // Caption style definition - italic, centered, 10pt
+    // Note: We don't use basedOn/next because the template may not have Normal defined
     let caption_style = r#"<w:style w:type="paragraph" w:styleId="Caption">
   <w:name w:val="Caption"/>
-  <w:basedOn w:val="Normal"/>
-  <w:next w:val="Normal"/>
   <w:qFormat/>
   <w:pPr>
     <w:spacing w:before="0" w:after="200"/>
