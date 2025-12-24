@@ -6,6 +6,7 @@ use super::blocks::{ListItem, MarkdownBlock};
 use super::error::SourceModelError;
 use super::image::ImageFormat;
 use super::markdown_source::MarkdownSection;
+use super::section_metadata::SectionMetadata;
 use super::section_number::SectionNumber;
 use super::text_run::{TextFormatting, TextRun};
 use super::types::Alignment;
@@ -47,6 +48,17 @@ pub struct MarkdownParser {
     /// Heading counters at each level (1-indexed, for h1 through h6)
     /// `heading_counters[0]` = count of h1 headings, `heading_counters[1]` = count of h2 headings, etc.
     heading_counters: [u32; 6],
+
+    /// Current code block context (language, accumulated content)
+    current_code_block: Option<CodeBlockContext>,
+}
+
+/// Context for building a code block
+struct CodeBlockContext {
+    /// Language identifier (e.g., "rust", "sysdoc")
+    language: Option<String>,
+    /// Accumulated code content
+    content: String,
 }
 
 /// Context for building a list
@@ -81,6 +93,8 @@ struct SectionBuilder {
     heading_text: String,
     /// Blocks in this section
     blocks: Vec<MarkdownBlock>,
+    /// Optional metadata parsed from a sysdoc code block
+    metadata: Option<SectionMetadata>,
 }
 
 impl MarkdownParser {
@@ -105,6 +119,7 @@ impl MarkdownParser {
             document_root,
             file_section_number,
             heading_counters: [0; 6],
+            current_code_block: None,
         }
     }
 
@@ -144,7 +159,144 @@ impl MarkdownParser {
         // Validate heading structure
         Self::validate_heading_structure(&parser.sections)?;
 
+        // Generate traceability tables if requested
+        Self::generate_traceability_tables(&mut parser.sections);
+
         Ok(parser.sections)
+    }
+
+    /// Generate traceability tables for sections that request them
+    ///
+    /// This post-processing step scans all sections for metadata and generates
+    /// traceability tables as requested by the `generate_section_id_to_traced_ids_table`
+    /// and `generate_traced_ids_to_section_ids_table` flags.
+    fn generate_traceability_tables(sections: &mut [MarkdownSection]) {
+        // Collect all traceability data from sections
+        let section_to_traced = Self::collect_section_traceability(sections);
+
+        // Build reverse mapping: traced_id -> [section_ids]
+        let traced_to_sections = Self::build_reverse_traceability(&section_to_traced);
+
+        // Now generate tables for sections that request them
+        for section in sections.iter_mut() {
+            let Some(ref metadata) = section.metadata else {
+                continue;
+            };
+
+            // Generate section_id -> traced_ids table
+            if metadata.generate_section_id_to_traced_ids_table {
+                let table = Self::create_section_to_traced_table(&section_to_traced);
+                section.content.push(table);
+            }
+
+            // Generate traced_id -> section_ids table
+            if metadata.generate_traced_ids_to_section_ids_table {
+                let table = Self::create_traced_to_sections_table(&traced_to_sections);
+                section.content.push(table);
+            }
+        }
+    }
+
+    /// Collect traceability data from all sections with metadata
+    fn collect_section_traceability(sections: &[MarkdownSection]) -> Vec<(String, Vec<String>)> {
+        let mut section_to_traced: Vec<(String, Vec<String>)> = Vec::new();
+
+        for section in sections.iter() {
+            let Some(ref metadata) = section.metadata else {
+                continue;
+            };
+            let Some(ref section_id) = metadata.section_id else {
+                continue;
+            };
+            let traced = metadata.traced_ids.clone().unwrap_or_default();
+            section_to_traced.push((section_id.clone(), traced));
+        }
+
+        // Sort by section_id
+        section_to_traced.sort_by(|a, b| a.0.cmp(&b.0));
+        section_to_traced
+    }
+
+    /// Build reverse mapping from traced_id to section_ids
+    fn build_reverse_traceability(
+        section_to_traced: &[(String, Vec<String>)],
+    ) -> std::collections::BTreeMap<String, Vec<String>> {
+        let mut traced_to_sections: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+
+        for (section_id, traced_ids) in section_to_traced {
+            for traced_id in traced_ids {
+                traced_to_sections
+                    .entry(traced_id.clone())
+                    .or_default()
+                    .push(section_id.clone());
+            }
+        }
+
+        // Sort the section_ids within each traced_id entry
+        for section_ids in traced_to_sections.values_mut() {
+            section_ids.sort();
+        }
+
+        traced_to_sections
+    }
+
+    /// Create a table mapping section_ids to their traced_ids
+    fn create_section_to_traced_table(
+        section_to_traced: &[(String, Vec<String>)],
+    ) -> MarkdownBlock {
+        use super::text_run::TextRun;
+
+        let headers = vec![
+            vec![TextRun::new("Section ID".to_string())],
+            vec![TextRun::new("Traced IDs".to_string())],
+        ];
+
+        let rows: Vec<Vec<Vec<TextRun>>> = section_to_traced
+            .iter()
+            .map(|(section_id, traced_ids)| {
+                let mut sorted_traced = traced_ids.clone();
+                sorted_traced.sort();
+                vec![
+                    vec![TextRun::new(section_id.clone())],
+                    vec![TextRun::new(sorted_traced.join(", "))],
+                ]
+            })
+            .collect();
+
+        MarkdownBlock::InlineTable {
+            alignments: vec![Alignment::None, Alignment::None],
+            headers,
+            rows,
+        }
+    }
+
+    /// Create a table mapping traced_ids to section_ids that reference them
+    fn create_traced_to_sections_table(
+        traced_to_sections: &std::collections::BTreeMap<String, Vec<String>>,
+    ) -> MarkdownBlock {
+        use super::text_run::TextRun;
+
+        let headers = vec![
+            vec![TextRun::new("Traced ID".to_string())],
+            vec![TextRun::new("Section IDs".to_string())],
+        ];
+
+        let rows: Vec<Vec<Vec<TextRun>>> = traced_to_sections
+            .iter()
+            .map(|(traced_id, section_ids)| {
+                vec![
+                    vec![TextRun::new(traced_id.clone())],
+                    vec![TextRun::new(section_ids.join(", "))],
+                ]
+            })
+            .collect();
+
+        MarkdownBlock::InlineTable {
+            alignments: vec![Alignment::None, Alignment::None],
+            headers,
+            rows,
+        }
     }
 
     /// Validate that the heading structure follows sysdoc requirements
@@ -318,7 +470,7 @@ impl MarkdownParser {
                 self.finish_blockquote();
             }
             TagEnd::CodeBlock => {
-                // Code blocks are handled in their text events
+                self.finish_code_block();
             }
             TagEnd::List(_) => {
                 self.finish_list();
@@ -377,6 +529,12 @@ impl MarkdownParser {
     /// Handle text content
     fn handle_text(&mut self, text: String) {
         if text.is_empty() {
+            return;
+        }
+
+        // If we're in a code block, append to code block content
+        if let Some(code_block) = self.current_code_block.as_mut() {
+            code_block.content.push_str(&text);
             return;
         }
 
@@ -449,6 +607,7 @@ impl MarkdownParser {
             level,
             heading_text: String::new(),
             blocks: Vec::new(),
+            metadata: None,
         });
 
         self.current_runs.clear();
@@ -501,10 +660,49 @@ impl MarkdownParser {
     }
 
     /// Handle code block start
-    fn handle_code_block_start(&mut self, _language: Option<String>) {
-        // Code blocks will have their content in text events
-        // We'll accumulate the text and create the block on end
-        self.current_runs.clear();
+    fn handle_code_block_start(&mut self, language: Option<String>) {
+        // Start accumulating code block content
+        self.current_code_block = Some(CodeBlockContext {
+            language,
+            content: String::new(),
+        });
+    }
+
+    /// Finish a code block
+    fn finish_code_block(&mut self) {
+        let Some(code_block) = self.current_code_block.take() else {
+            return;
+        };
+
+        // Check if this is a sysdoc metadata block
+        if code_block.language.as_deref() == Some("sysdoc") {
+            self.handle_sysdoc_metadata(&code_block.content);
+            return;
+        }
+
+        // Regular code block - create a CodeBlock
+        let block = MarkdownBlock::CodeBlock {
+            language: code_block.language,
+            code: code_block.content,
+            fenced: true,
+        };
+
+        self.add_block(block);
+    }
+
+    /// Handle sysdoc metadata block content
+    fn handle_sysdoc_metadata(&mut self, content: &str) {
+        match SectionMetadata::parse(content) {
+            Ok(metadata) => {
+                // Store metadata in the current section
+                if let Some(section) = self.current_section.as_mut() {
+                    section.metadata = Some(metadata);
+                }
+            }
+            Err(err) => {
+                log::warn!("Failed to parse sysdoc metadata: {}", err);
+            }
+        }
     }
 
     /// Handle image
@@ -731,6 +929,7 @@ impl MarkdownParser {
             heading_text: section.heading_text,
             section_number,
             content: section.blocks,
+            metadata: section.metadata,
         }
     }
 }
@@ -1787,5 +1986,243 @@ End of document."#;
             }
             _ => panic!("Expected Html block"),
         }
+    }
+
+    // ============================================================================
+    // Section metadata tests
+    // ============================================================================
+
+    #[test]
+    fn test_parse_sysdoc_metadata_block() {
+        // Arrange: Markdown with sysdoc metadata block
+        let markdown = r#"# Section with Metadata
+
+```sysdoc
+section_id = "REQ-001"
+traced_ids = ["SRS-001", "SRS-002"]
+```
+
+Some content here.
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: Should have metadata parsed
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].metadata.is_some());
+
+        let metadata = sections[0].metadata.as_ref().unwrap();
+        assert_eq!(metadata.section_id, Some("REQ-001".to_string()));
+        assert_eq!(
+            metadata.traced_ids,
+            Some(vec!["SRS-001".to_string(), "SRS-002".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_sysdoc_block_not_in_content() {
+        // Arrange: Markdown with sysdoc block
+        let markdown = r#"# Section
+
+```sysdoc
+section_id = "REQ-001"
+```
+
+Some content.
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: sysdoc block should NOT appear as a CodeBlock
+        let code_blocks: Vec<_> = sections[0]
+            .content
+            .iter()
+            .filter(|block| matches!(block, MarkdownBlock::CodeBlock { .. }))
+            .collect();
+
+        assert!(
+            code_blocks.is_empty(),
+            "sysdoc blocks should not be in content"
+        );
+    }
+
+    #[test]
+    fn test_regular_code_block_still_works() {
+        // Arrange: Markdown with regular code block
+        let markdown = r#"# Code Section
+
+```rust
+fn main() {}
+```
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: Should have a CodeBlock
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].content.len(), 1);
+
+        match &sections[0].content[0] {
+            MarkdownBlock::CodeBlock { language, code, .. } => {
+                assert_eq!(language, &Some("rust".to_string()));
+                assert!(code.contains("fn main"));
+            }
+            _ => panic!("Expected CodeBlock"),
+        }
+    }
+
+    #[test]
+    fn test_generate_section_to_traced_table() {
+        // Arrange: Multiple sections with metadata requesting forward table
+        let markdown = r#"# Traceability
+
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+```
+
+## Requirement 1
+
+```sysdoc
+section_id = "REQ-001"
+traced_ids = ["SRS-001", "SRS-002"]
+```
+
+Content 1.
+
+## Requirement 2
+
+```sysdoc
+section_id = "REQ-002"
+traced_ids = ["SRS-003"]
+```
+
+Content 2.
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: First section should have a generated table
+        assert_eq!(sections.len(), 3);
+
+        // Find InlineTable in the first section
+        let tables: Vec<_> = sections[0]
+            .content
+            .iter()
+            .filter(|block| matches!(block, MarkdownBlock::InlineTable { .. }))
+            .collect();
+
+        assert_eq!(tables.len(), 1, "Should have one generated table");
+
+        match tables[0] {
+            MarkdownBlock::InlineTable { headers, rows, .. } => {
+                // Check headers
+                assert_eq!(headers.len(), 2);
+                assert_eq!(headers[0][0].text, "Section ID");
+                assert_eq!(headers[1][0].text, "Traced IDs");
+
+                // Check rows (should be sorted by section_id)
+                assert_eq!(rows.len(), 2);
+                assert_eq!(rows[0][0][0].text, "REQ-001");
+                assert_eq!(rows[0][1][0].text, "SRS-001, SRS-002");
+                assert_eq!(rows[1][0][0].text, "REQ-002");
+                assert_eq!(rows[1][1][0].text, "SRS-003");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_generate_traced_to_sections_table() {
+        // Arrange: Multiple sections with metadata requesting reverse table
+        let markdown = r#"# Traceability
+
+```sysdoc
+generate_traced_ids_to_section_ids_table = true
+```
+
+## Requirement 1
+
+```sysdoc
+section_id = "REQ-001"
+traced_ids = ["SRS-001", "SRS-002"]
+```
+
+Content 1.
+
+## Requirement 2
+
+```sysdoc
+section_id = "REQ-002"
+traced_ids = ["SRS-001"]
+```
+
+Content 2.
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: First section should have a generated table
+        assert_eq!(sections.len(), 3);
+
+        // Find InlineTable in the first section
+        let tables: Vec<_> = sections[0]
+            .content
+            .iter()
+            .filter(|block| matches!(block, MarkdownBlock::InlineTable { .. }))
+            .collect();
+
+        assert_eq!(tables.len(), 1, "Should have one generated table");
+
+        match tables[0] {
+            MarkdownBlock::InlineTable { headers, rows, .. } => {
+                // Check headers
+                assert_eq!(headers.len(), 2);
+                assert_eq!(headers[0][0].text, "Traced ID");
+                assert_eq!(headers[1][0].text, "Section IDs");
+
+                // Check rows (should be sorted by traced_id, with SRS-001 mapping to both REQ-001 and REQ-002)
+                assert_eq!(rows.len(), 2);
+                assert_eq!(rows[0][0][0].text, "SRS-001");
+                assert_eq!(rows[0][1][0].text, "REQ-001, REQ-002");
+                assert_eq!(rows[1][0][0].text, "SRS-002");
+                assert_eq!(rows[1][1][0].text, "REQ-001");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_no_metadata_no_table() {
+        // Arrange: Section without metadata
+        let markdown = r#"# Plain Section
+
+No metadata here.
+"#;
+
+        // Act: Parse the markdown
+        let sections =
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+
+        // Assert: No metadata and no generated tables
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].metadata.is_none());
+
+        let tables: Vec<_> = sections[0]
+            .content
+            .iter()
+            .filter(|block| matches!(block, MarkdownBlock::InlineTable { .. }))
+            .collect();
+
+        assert!(tables.is_empty(), "Should have no generated tables");
     }
 }

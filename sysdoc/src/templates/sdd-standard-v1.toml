@@ -212,6 +212,10 @@ guidance = """
 a. Identify the individual software units that make up the CSCI. Each software
 unit shall be assigned a unique identifier.
 
+Each software unit subsection should include a sysdoc metadata block with:
+- section_id: A unique software unit identifier (e.g., "SDD-SU-001")
+- traced_ids: IDs from the SRS requirements that this unit addresses
+
 Note: A software unit shall be defined as an element in the design of a CSCI;
 for example, a major subdivision of a CSCI, a component of that subdivision, a class, object,
 module, function, routine, or database. Software units may occur at different levels of a
@@ -414,6 +418,30 @@ requirements allocated to it. (Use of MBSE methods is acceptable.)
 
 b. Traceability from each CSCI requirement to the software units to which it is
 allocated.
+
+The sysdoc metadata block below will automatically generate traceability tables from
+all section_id and traced_ids defined throughout this document.
+"""
+content = """
+
+The tables below are automatically generated from the sysdoc metadata blocks
+defined in the CSCI component sections of this document.
+
+## Software Units to Requirements
+
+<!-- The table below is auto-generated showing each software unit and the requirements it addresses -->
+
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+```
+
+## Requirements to Software Units
+
+<!-- The table below is auto-generated showing each requirement and the software units that implement it -->
+
+```sysdoc
+generate_traced_ids_to_section_ids_table = true
+```
 """
 
 # =============================================================================

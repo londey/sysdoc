@@ -2,6 +2,7 @@
 
 use super::blocks::MarkdownBlock;
 use super::error::SourceModelError;
+use super::section_metadata::SectionMetadata;
 use super::section_number::SectionNumber;
 use std::path::{Path, PathBuf};
 
@@ -75,4 +76,7 @@ pub struct MarkdownSection {
     /// Parsed markdown content as structured blocks
     /// CSV tables are embedded as CsvTable blocks within this content
     pub content: Vec<MarkdownBlock>,
+
+    /// Optional metadata parsed from a `sysdoc` code block within this section
+    pub metadata: Option<SectionMetadata>,
 }

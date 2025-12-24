@@ -197,6 +197,7 @@ mod tests {
             heading_text: "Introduction".to_string(),
             section_number: SectionNumber::parse("1").unwrap(),
             content: vec![],
+            metadata: None,
         };
 
         let mut builder = DocumentBuilder::new(test_metadata(), PathBuf::from("."));

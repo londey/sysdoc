@@ -249,6 +249,18 @@ following subparagraphs.
 
 NOTE: Copy this section for each test. Replace (identifier) with the actual
 test identifier from the Software Test Description.
+
+Each test result section should include a sysdoc metadata block with:
+- section_id: The test result identifier (e.g., "STR-TR-001")
+- traced_ids: IDs from the SRS requirements that this test result verifies
+"""
+content = """
+```sysdoc
+section_id = "STR-TR-001"
+traced_ids = ["SRS-REQ-XXX"]
+```
+
+[Test result details here]
 """
 
 [files."src/04_detailed_test_results/04.01.01_test_summary.md"]
@@ -382,12 +394,25 @@ c. Identification of any requirements not verified, with justification
 
 d. Summary of verification status for all requirements
 
-| Requirement ID | Test Case ID | Test Result | Status |
-|----------------|--------------|-------------|--------|
-| REQ-001 | TC-001 | Pass | Verified |
-| REQ-002 | TC-002 | Fail | Not Verified |
-| REQ-003 | TC-003, TC-004 | Pass, Pass | Verified |
-| REQ-004 | N/A | N/A | Waived - See Waiver W-001 |
+The sysdoc metadata block below will automatically generate traceability tables from
+all section_id and traced_ids defined throughout this document.
+"""
+content = """
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+generate_traced_ids_to_section_ids_table = true
+```
+
+The tables below are automatically generated from the sysdoc metadata blocks
+defined in the test result sections of this document.
+
+## Test Results to Requirements
+
+<!-- The table below is auto-generated showing each STR test result and the requirements it traces to -->
+
+## Requirements to Test Results
+
+<!-- The table below is auto-generated showing each requirement and the STR test results that address it -->
 """
 
 # =============================================================================
