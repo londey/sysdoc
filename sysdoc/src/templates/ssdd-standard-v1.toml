@@ -188,6 +188,10 @@ a. Identify the components of the system (HWCIs, CSCIs, and manual operations). 
 component shall be assigned a project-unique identifier. Note: a database may be treated as a
 CSCI or as part of a CSCI.
 
+Each system component subsection should include a sysdoc metadata block with:
+- section_id: A unique component identifier (e.g., "SSDD-COMP-001")
+- traced_ids: IDs from the SSS requirements that this component addresses
+
 b. Show the static (such as "consists of") relationship(s) of the components. Multiple
 relationships may be presented, depending on the selected design methodology.
 
@@ -376,6 +380,31 @@ requirements allocated to it. (Alternatively, this traceability may be provided 
 
 b. Traceability from each system requirement to the system components to which it is
 allocated.
+
+The sysdoc metadata block below will automatically generate traceability tables from
+all section_id and traced_ids defined throughout this document.
+"""
+content = """
+
+The tables below are automatically generated from the sysdoc metadata blocks
+defined in the component sections of this document.
+
+## System Components to System Requirements
+
+<!-- The table below is auto-generated showing each SSDD component and the system requirements it traces to -->
+
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+```
+
+## System Requirements to System Components
+
+<!-- The table below is auto-generated showing each system requirement and the SSDD components that address it -->
+
+```sysdoc
+generate_traced_ids_to_section_ids_table = true
+```
+
 """
 
 # =============================================================================

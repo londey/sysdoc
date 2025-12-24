@@ -152,8 +152,16 @@ annotation of the requirements in the paragraphs where they appear.
 heading = "Example Requirement"
 guidance = """
 This section provides an example requirement format. Delete or replace this section with actual requirements.
+
+Each requirement section should include a sysdoc metadata block with:
+- section_id: A unique requirement identifier (e.g., "SSS-REQ-001")
+- traced_ids: IDs from parent documents this requirement traces to (if applicable)
 """
 content = """
+```sysdoc
+section_id = "SSS-REQ-001"
+```
+
 <!--
 Properties of a Good Requirement:
 - Necessary: The requirement is essential; removing it would cause a deficiency
@@ -578,6 +586,26 @@ b. Traceability from each system requirement that has been allocated to the subs
 requirements that address it. All system
 requirements allocated to the subsystem shall be accounted for. Those that trace to subsystem
 requirements contained in IRSs shall reference these IRSs.
+
+The sysdoc metadata block below will automatically generate traceability tables from
+all section_id and traced_ids defined throughout this document.
+"""
+content = """
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+generate_traced_ids_to_section_ids_table = true
+```
+
+The tables below are automatically generated from the sysdoc metadata blocks
+defined in the requirements sections of this document.
+
+## Subsystem Requirements to System Requirements
+
+<!-- The table below is auto-generated showing each SSS requirement and the system requirements it traces to -->
+
+## System Requirements to Subsystem Requirements
+
+<!-- The table below is auto-generated showing each system requirement and the SSS requirements that address it -->
 """
 
 # =============================================================================

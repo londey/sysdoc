@@ -12,6 +12,7 @@ mod error;
 mod image;
 mod markdown_source;
 mod parser;
+mod section_metadata;
 mod section_number;
 mod table;
 mod text_run;

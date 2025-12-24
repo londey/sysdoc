@@ -310,6 +310,10 @@ h. Assumptions and constraints. Identify any assumptions and constraints
 
 i. Safety, security, and privacy considerations. Identify any safety, security,
    and privacy considerations associated with the test.
+
+Each planned test subsection should include a sysdoc metadata block with:
+- section_id: A unique test identifier (e.g., "STP-TEST-001")
+- traced_ids: IDs from the SRS requirements that this test verifies
 """
 
 # =============================================================================
@@ -525,6 +529,26 @@ b. Traceability from each requirement to the test(s) that address it.
 
 c. Identification of any requirements that are not addressed by any test,
    with justification for why they are not tested.
+
+The sysdoc metadata block below will automatically generate traceability tables from
+all section_id and traced_ids defined throughout this document.
+"""
+content = """
+```sysdoc
+generate_section_id_to_traced_ids_table = true
+generate_traced_ids_to_section_ids_table = true
+```
+
+The tables below are automatically generated from the sysdoc metadata blocks
+defined in the test sections of this document.
+
+## Tests to Requirements
+
+<!-- The table below is auto-generated showing each STP test and the requirements it traces to -->
+
+## Requirements to Tests
+
+<!-- The table below is auto-generated showing each requirement and the STP tests that address it -->
 """
 
 # =============================================================================
