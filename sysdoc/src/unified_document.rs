@@ -79,10 +79,16 @@ impl UnifiedDocument {
 /// Document metadata
 #[derive(Debug, Clone)]
 pub struct DocumentMetadata {
+    /// System identifier (if any)
+    pub system_id: Option<String>,
     /// Document unique identifier
     pub document_id: String,
     /// Document title
     pub title: String,
+    /// Document subtitle (if any)
+    pub subtitle: Option<String>,
+    /// Document description (if any)
+    pub description: Option<String>,
     /// Document type (SDD, SRS, etc.)
     pub doc_type: String,
     /// Standard/specification
@@ -171,8 +177,11 @@ mod tests {
 
     fn test_metadata() -> DocumentMetadata {
         DocumentMetadata {
+            system_id: None,
             document_id: "TEST-001".to_string(),
             title: "Test Document".to_string(),
+            subtitle: None,
+            description: None,
             doc_type: "SDD".to_string(),
             standard: "DI-IPSC-81435B".to_string(),
             template: "sdd-standard-v1".to_string(),

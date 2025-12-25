@@ -8,8 +8,11 @@ The `sysdoc.toml` file contains metadata about a systems engineering document. T
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
+| `system_id` | String | No | Optional system identifier (used in DOCX cp:keywords field) |
 | `document_id` | String | Yes | Unique identifier for the document (e.g., "SDD-001", "SRS-2024-001") |
-| `document_name` | String | Yes | Human-readable name of the document |
+| `document_title` | String | Yes | Human-readable title of the document |
+| `document_subtitle` | String | No | Optional subtitle (used for dc:subject in DOCX) |
+| `document_description` | String | No | Optional description (used for dc:description in DOCX) |
 | `document_type` | String | Yes | Type of document (SSS, SSDD, SDD, SRS, ICD, STP, STD, STR, etc.) |
 | `document_standard` | String | Yes | Standard or DID the document follows (e.g., "DI-IPSC-81435B") |
 | `document_template` | String | Yes | Template used to create the document (for tracking purposes) |
@@ -26,8 +29,11 @@ The `sysdoc.toml` file contains metadata about a systems engineering document. T
 ## Example
 
 ```toml
+system_id = "FCS-2024"
 document_id = "SDD-001"
-document_name = "Flight Control Software Design Description"
+document_title = "Flight Control Software Design Description"
+document_subtitle = "Avionics Control System"
+document_description = "Detailed design documentation for the flight control software system"
 document_type = "SDD"
 document_standard = "DI-IPSC-81435B"
 document_template = "sdd-standard-v1"
@@ -75,7 +81,7 @@ use sysdoc::document_config::DocumentConfig;
 // Load configuration
 let config = DocumentConfig::load("sysdoc.toml")?;
 
-println!("Document: {} ({})", config.document_name, config.document_id);
+println!("Document: {} ({})", config.document_title, config.document_id);
 println!("Owner: {} <{}>", config.document_owner.name, config.document_owner.email);
 
 // Save configuration
@@ -85,6 +91,17 @@ config.save("sysdoc.toml")?;
 ## Validation
 
 The schema enforces:
-- All fields are required (no optional fields)
+
+- Most fields are required, except `system_id`, `document_subtitle`, and `document_description` which are optional
 - Email addresses should be valid (enforced by application logic, not schema)
 - Document IDs should be unique within your organization (enforced by process, not schema)
+
+## DOCX Metadata Mapping
+
+The configuration fields are mapped to DOCX metadata as follows:
+
+- `document_title` → `<dc:title>`
+- `document_subtitle` → `<dc:subject>` (empty if not provided)
+- `document_description` → `<dc:description>` (empty if not provided)
+- `system_id`, `document_id`, `document_type`, `document_standard` → `<cp:keywords>` (comma-separated)
+- `document_owner.name` → `<dc:creator>`

@@ -3,12 +3,22 @@
 # This file defines the metadata for a sysdoc systems engineering document.
 # Place this file at the root of your document repository, next to the src/ folder.
 
+# Optional system identifier this document belongs to
+# Used in DOCX keywords along with document_id, document_type, and document_standard
+# system_id = "FCS-2024"
+
 # Unique identifier for this document
 # Examples: "SDD-001", "SRS-2024-001", "ICD-FCS-001"
 document_id = "SDD-001"
 
-# Human-readable name of the document
-document_name = "Flight Control Software Design Description"
+# Human-readable title of the document
+document_title = "Flight Control Software Design Description"
+
+# Optional subtitle for the document (used in DOCX dc:subject field)
+# document_subtitle = "Avionics Control System"
+
+# Optional description for the document (used in DOCX dc:description field)
+# document_description = "Detailed design documentation for the avionics control system"
 
 # Type of systems engineering document
 # Common types:
