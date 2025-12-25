@@ -184,18 +184,13 @@ pub fn to_docx(
     // Write updated docProps files with document metadata
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    let core_xml = update_or_create_core_properties(
-        core_xml_contents.as_deref(),
-        &doc.metadata,
-    )?;
+    let core_xml = update_or_create_core_properties(core_xml_contents.as_deref(), &doc.metadata)?;
     output_zip.start_file("docProps/core.xml", options)?;
     output_zip.write_all(&core_xml)?;
     written_files.insert("docProps/core.xml".to_string());
 
-    let custom_xml = update_or_create_custom_properties(
-        custom_xml_contents.as_deref(),
-        &doc.metadata,
-    )?;
+    let custom_xml =
+        update_or_create_custom_properties(custom_xml_contents.as_deref(), &doc.metadata)?;
     output_zip.start_file("docProps/custom.xml", options)?;
     output_zip.write_all(&custom_xml)?;
     written_files.insert("docProps/custom.xml".to_string());
@@ -866,7 +861,8 @@ fn update_or_create_core_properties(
     metadata: &DocumentMetadata,
 ) -> Result<Vec<u8>, ExportError> {
     // Extract preserved fields from existing XML
-    let (keywords, description, last_modified_by, revision) = if let Some(xml_bytes) = existing_xml {
+    let (keywords, description, last_modified_by, revision) = if let Some(xml_bytes) = existing_xml
+    {
         let xml_str = String::from_utf8_lossy(xml_bytes);
         (
             extract_xml_tag_content(&xml_str, "cp:keywords").unwrap_or_default(),
@@ -888,7 +884,9 @@ fn update_or_create_core_properties(
     xml.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#);
     xml.push('\n');
     xml.push_str(r#"<cp:coreProperties "#);
-    xml.push_str(r#"xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "#);
+    xml.push_str(
+        r#"xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" "#,
+    );
     xml.push_str(r#"xmlns:dc="http://purl.org/dc/elements/1.1/" "#);
     xml.push_str(r#"xmlns:dcterms="http://purl.org/dc/terms/" "#);
     xml.push_str(r#"xmlns:dcmitype="http://purl.org/dc/dcmitype/" "#);
@@ -896,10 +894,22 @@ fn update_or_create_core_properties(
     xml.push_str(&format!("<dc:title>{}</dc:title>", title));
     xml.push_str(&format!("<dc:subject>{}</dc:subject>", subject));
     xml.push_str(&format!("<dc:creator>{}</dc:creator>", creator));
-    xml.push_str(&format!("<cp:keywords>{}</cp:keywords>", escape_xml(&keywords)));
-    xml.push_str(&format!("<dc:description>{}</dc:description>", escape_xml(&description)));
-    xml.push_str(&format!("<cp:lastModifiedBy>{}</cp:lastModifiedBy>", escape_xml(&last_modified_by)));
-    xml.push_str(&format!("<cp:revision>{}</cp:revision>", escape_xml(&revision)));
+    xml.push_str(&format!(
+        "<cp:keywords>{}</cp:keywords>",
+        escape_xml(&keywords)
+    ));
+    xml.push_str(&format!(
+        "<dc:description>{}</dc:description>",
+        escape_xml(&description)
+    ));
+    xml.push_str(&format!(
+        "<cp:lastModifiedBy>{}</cp:lastModifiedBy>",
+        escape_xml(&last_modified_by)
+    ));
+    xml.push_str(&format!(
+        "<cp:revision>{}</cp:revision>",
+        escape_xml(&revision)
+    ));
 
     // Add created date if available
     if let Some(created) = &metadata.created {
@@ -924,6 +934,33 @@ fn update_or_create_core_properties(
     xml.push_str("</cp:coreProperties>");
 
     Ok(xml.into_bytes())
+}
+
+/// Extract name and value from a custom property XML fragment
+///
+/// Returns None if the property cannot be parsed or should not be preserved
+fn extract_custom_property(
+    prop_xml: &str,
+    our_property_names: &std::collections::HashSet<&str>,
+) -> Option<(String, String)> {
+    // Extract name attribute
+    let name_start = prop_xml.find(r#"name=""#)?;
+    let name_content_start = name_start + r#"name=""#.len();
+    let name_end = prop_xml[name_content_start..].find('"')?;
+    let name = &prop_xml[name_content_start..name_content_start + name_end];
+
+    // Skip if this is a property we're overriding
+    if our_property_names.contains(name) {
+        return None;
+    }
+
+    // Extract value (between > and </ of vt:lpwstr)
+    let value_start = prop_xml.find("<vt:lpwstr>")?;
+    let value_content_start = value_start + "<vt:lpwstr>".len();
+    let value_end = prop_xml[value_content_start..].find("</vt:lpwstr>")?;
+    let value = &prop_xml[value_content_start..value_content_start + value_end];
+
+    Some((name.to_string(), value.to_string()))
 }
 
 /// Update or create docProps/custom.xml with document metadata
@@ -961,43 +998,23 @@ fn update_or_create_custom_properties(
     // Parse existing properties to preserve non-overridden ones
     let preserved_properties: Vec<(String, String)> = if let Some(xml_bytes) = existing_xml {
         let xml_str = String::from_utf8_lossy(xml_bytes);
-
-        // Simple extraction: find all <property> elements and extract name and value
         let mut preserved = Vec::new();
         let mut search_pos = 0;
 
         while let Some(prop_start) = xml_str[search_pos..].find("<property ") {
             let abs_start = search_pos + prop_start;
-            if let Some(prop_end) = xml_str[abs_start..].find("</property>") {
-                let prop_xml = &xml_str[abs_start..abs_start + prop_end + "</property>".len()];
-
-                // Extract name attribute
-                if let Some(name_start) = prop_xml.find(r#"name=""#) {
-                    let name_content_start = name_start + r#"name=""#.len();
-                    if let Some(name_end) = prop_xml[name_content_start..].find('"') {
-                        let name = &prop_xml[name_content_start..name_content_start + name_end];
-
-                        // Only preserve if not in our properties list
-                        if !our_property_names.contains(name) {
-                            // Extract value (between > and </ of vt:lpwstr)
-                            if let Some(value_start) = prop_xml.find("<vt:lpwstr>") {
-                                let value_content_start = value_start + "<vt:lpwstr>".len();
-                                if let Some(value_end) =
-                                    prop_xml[value_content_start..].find("</vt:lpwstr>")
-                                {
-                                    let value = &prop_xml
-                                        [value_content_start..value_content_start + value_end];
-                                    preserved.push((name.to_string(), value.to_string()));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                search_pos = abs_start + prop_end + "</property>".len();
-            } else {
+            let Some(prop_end) = xml_str[abs_start..].find("</property>") else {
                 break;
+            };
+
+            let prop_xml = &xml_str[abs_start..abs_start + prop_end + "</property>".len()];
+
+            // Extract and preserve if not in our override list
+            if let Some((name, value)) = extract_custom_property(prop_xml, &our_property_names) {
+                preserved.push((name, value));
             }
+
+            search_pos = abs_start + prop_end + "</property>".len();
         }
 
         preserved
@@ -1010,8 +1027,12 @@ fn update_or_create_custom_properties(
     xml.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#);
     xml.push('\n');
     xml.push_str(r#"<Properties "#);
-    xml.push_str(r#"xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" "#);
-    xml.push_str(r#"xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">"#);
+    xml.push_str(
+        r#"xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" "#,
+    );
+    xml.push_str(
+        r#"xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">"#,
+    );
 
     // Add our properties with sequential PIDs
     let mut pid = 2;
@@ -1061,9 +1082,9 @@ fn ensure_docprops_relationships(rels_xml: &[u8]) -> Result<Vec<u8>, ExportError
     }
 
     // Find the closing </Relationships> tag
-    let rels_close_pos = xml_str
-        .rfind("</Relationships>")
-        .ok_or_else(|| ExportError::Format("Could not find </Relationships> in _rels/.rels".to_string()))?;
+    let rels_close_pos = xml_str.rfind("</Relationships>").ok_or_else(|| {
+        ExportError::Format("Could not find </Relationships> in _rels/.rels".to_string())
+    })?;
 
     // Find next available rId number
     let mut max_rid = 0;
@@ -1127,9 +1148,9 @@ fn ensure_docprops_content_types(content_types_xml: &[u8]) -> Result<Vec<u8>, Ex
     }
 
     // Find the closing </Types> tag
-    let types_close_pos = xml_str
-        .rfind("</Types>")
-        .ok_or_else(|| ExportError::Format("Could not find </Types> in [Content_Types].xml".to_string()))?;
+    let types_close_pos = xml_str.rfind("</Types>").ok_or_else(|| {
+        ExportError::Format("Could not find </Types> in [Content_Types].xml".to_string())
+    })?;
 
     let mut result = String::with_capacity(xml_str.len() + 400);
     result.push_str(&xml_str[..types_close_pos]);
