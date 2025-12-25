@@ -453,7 +453,7 @@ fn write_list_item(
     Ok(())
 }
 
-/// Write the first block of a list item (inline with <li>)
+/// Write the first block of a list item (inline with `<li>`)
 fn write_first_list_block(
     output: &mut String,
     block: &MarkdownBlock,

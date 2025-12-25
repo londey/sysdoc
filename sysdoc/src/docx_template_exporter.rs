@@ -1145,7 +1145,7 @@ fn ensure_docprops_relationships(rels_xml: &[u8]) -> Result<Vec<u8>, ExportError
     Ok(result.into_bytes())
 }
 
-/// Ensure [Content_Types].xml contains Override entries for docProps files
+/// Ensure \[Content_Types\].xml contains Override entries for docProps files
 ///
 /// Adds Override elements for core.xml and custom.xml if they don't already exist
 fn ensure_docprops_content_types(content_types_xml: &[u8]) -> Result<Vec<u8>, ExportError> {
@@ -1289,7 +1289,7 @@ fn ensure_required_styles(styles_xml: &[u8]) -> Result<Vec<u8>, ExportError> {
     }
 }
 
-/// Ensure image content types are present in [Content_Types].xml
+/// Ensure image content types are present in \[Content_Types\].xml
 fn ensure_image_content_types(
     content_types_xml: &[u8],
     images: &HashMap<PathBuf, ImageData>,
