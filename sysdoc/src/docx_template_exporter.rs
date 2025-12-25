@@ -861,17 +861,15 @@ fn update_or_create_core_properties(
     metadata: &DocumentMetadata,
 ) -> Result<Vec<u8>, ExportError> {
     // Extract preserved fields from existing XML
-    let (keywords, description, last_modified_by, revision) = if let Some(xml_bytes) = existing_xml
-    {
+    let (keywords, last_modified_by, revision) = if let Some(xml_bytes) = existing_xml {
         let xml_str = String::from_utf8_lossy(xml_bytes);
         (
             extract_xml_tag_content(&xml_str, "cp:keywords").unwrap_or_default(),
-            extract_xml_tag_content(&xml_str, "dc:description").unwrap_or_default(),
             extract_xml_tag_content(&xml_str, "cp:lastModifiedBy").unwrap_or_default(),
             extract_xml_tag_content(&xml_str, "cp:revision").unwrap_or_else(|| "1".to_string()),
         )
     } else {
-        (String::new(), String::new(), String::new(), "1".to_string())
+        (String::new(), String::new(), "1".to_string())
     };
 
     // Prepare values
@@ -881,6 +879,11 @@ fn update_or_create_core_properties(
         escape_xml(subtitle)
     } else {
         escape_xml(&format!("{} - {}", metadata.doc_type, metadata.standard))
+    };
+    let description = if let Some(desc) = &metadata.description {
+        escape_xml(desc)
+    } else {
+        String::new()
     };
 
     // Build XML

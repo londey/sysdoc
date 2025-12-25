@@ -14,6 +14,9 @@ document_title = "Flight Control Software Design Description"
 # If not provided, defaults to "<document_type> - <document_standard>"
 # document_subtitle = "Avionics Control System"
 
+# Optional description for the document (used in DOCX dc:description field)
+# document_description = "Detailed design documentation for the avionics control system"
+
 # Type of systems engineering document
 # Common types:
 #   - SSS: System/Subsystem Specification

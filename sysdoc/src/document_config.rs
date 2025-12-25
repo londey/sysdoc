@@ -16,6 +16,9 @@ pub struct DocumentConfig {
     /// Optional document subtitle (used for dc:subject in DOCX)
     pub document_subtitle: Option<String>,
 
+    /// Optional document description (used for dc:description in DOCX)
+    pub document_description: Option<String>,
+
     /// Document owner/author information
     pub document_owner: Person,
 
@@ -116,6 +119,9 @@ mod tests {
             document_id: "SDD-001".to_string(),
             document_title: "Flight Control Software Design Description".to_string(),
             document_subtitle: Some("Avionics Control System".to_string()),
+            document_description: Some(
+                "Detailed design for the flight control software system".to_string(),
+            ),
             document_owner: Person {
                 name: "John Doe".to_string(),
                 email: "john.doe@example.com".to_string(),
@@ -157,6 +163,7 @@ mod tests {
 document_id = "SRS-2024-001"
 document_title = "Satellite Communication System Requirements"
 document_subtitle = "Ground Station Interface"
+document_description = "Requirements for satellite ground station communication interface"
 document_type = "SRS"
 document_standard = "DI-IPSC-81433A"
 document_template = "srs-standard-v2"
