@@ -10,6 +10,8 @@ pub enum OutputFormat {
     Docx,
     /// Markdown with images in a separate folder
     Markdown,
+    /// HTML with embedded images
+    Html,
 }
 
 /// DOCX export engine selection
@@ -62,12 +64,12 @@ pub enum Commands {
         input: PathBuf,
 
         /// Output file or directory path
-        #[arg(short, long, default_value = "output.docx")]
+        #[arg(short, long, default_value = "output")]
         output: PathBuf,
 
-        /// Output format (docx or markdown)
-        #[arg(short, long, value_enum, default_value = "docx")]
-        format: OutputFormat,
+        /// Output format (auto-detected from file extension if not specified)
+        #[arg(short, long, value_enum)]
+        format: Option<OutputFormat>,
 
         /// Watch for changes and rebuild automatically
         #[arg(short, long)]

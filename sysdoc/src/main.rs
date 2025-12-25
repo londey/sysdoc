@@ -35,6 +35,9 @@ mod docx_template_exporter;
 // Markdown exporter
 mod markdown_exporter;
 
+// HTML exporter
+mod html_exporter;
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Commands, DocxEngine, OutputFormat};
@@ -154,13 +157,48 @@ fn handle_init_command(
 /// Handle the build command
 fn handle_build_command(
     input: std::path::PathBuf,
-    output: std::path::PathBuf,
-    format: OutputFormat,
+    mut output: std::path::PathBuf,
+    format_arg: Option<OutputFormat>,
     watch: bool,
     verbose: bool,
     no_images: bool,
     engine: DocxEngine,
 ) -> Result<()> {
+    // Auto-detect format from output file extension if not explicitly specified
+    let format = match format_arg {
+        Some(fmt) => {
+            // Format explicitly specified, add appropriate extension if missing
+            if output.extension().is_none() {
+                let ext = match fmt {
+                    OutputFormat::Docx => "docx",
+                    OutputFormat::Markdown => "md",
+                    OutputFormat::Html => "html",
+                };
+                output.set_extension(ext);
+            }
+            fmt
+        }
+        None => {
+            // Auto-detect from file extension
+            match output.extension().and_then(|s| s.to_str()) {
+                Some("docx") => OutputFormat::Docx,
+                Some("md") | Some("markdown") => OutputFormat::Markdown,
+                Some("html") | Some("htm") => OutputFormat::Html,
+                Some(ext) => {
+                    anyhow::bail!(
+                        "Unknown output format for extension '.{}'. Supported: .docx, .md, .html\nUse --format to specify explicitly.",
+                        ext
+                    );
+                }
+                None => {
+                    // No extension, default to DOCX
+                    output.set_extension("docx");
+                    OutputFormat::Docx
+                }
+            }
+        }
+    };
+
     // Initialize logging if verbose
     if verbose {
         env_logger::Builder::from_default_env()
@@ -208,6 +246,7 @@ fn handle_build_command(
         match format {
             OutputFormat::Docx => "DOCX",
             OutputFormat::Markdown => "Markdown",
+            OutputFormat::Html => "HTML",
         }
     );
 
@@ -250,6 +289,11 @@ fn handle_build_command(
         OutputFormat::Markdown => {
             pipeline::export::to_markdown(&unified_doc, &output)
                 .with_context(|| format!("Failed to export Markdown to {}", output.display()))?;
+            println!("✓ Successfully wrote: {}", output.display());
+        }
+        OutputFormat::Html => {
+            pipeline::export::to_html(&unified_doc, &output)
+                .with_context(|| format!("Failed to export HTML to {}", output.display()))?;
             println!("✓ Successfully wrote: {}", output.display());
         }
     }
@@ -401,6 +445,12 @@ fn print_build_info(
             println!("Format: Markdown with images folder");
             if no_images {
                 println!("Warning: --no-images has no effect in Markdown format");
+            }
+        }
+        OutputFormat::Html => {
+            println!("Format: HTML with embedded images");
+            if no_images {
+                println!("Warning: --no-images has no effect in HTML format");
             }
         }
     }
