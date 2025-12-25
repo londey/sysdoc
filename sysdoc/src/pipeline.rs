@@ -282,6 +282,7 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
     let metadata = DocumentMetadata {
         document_id: source.config.document_id.clone(),
         title: source.config.document_title.clone(),
+        subtitle: source.config.document_subtitle.clone(),
         doc_type: source.config.document_type.clone(),
         standard: source.config.document_standard.clone(),
         template: source.config.document_template.clone(),

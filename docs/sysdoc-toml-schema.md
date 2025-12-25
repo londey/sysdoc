@@ -10,6 +10,7 @@ The `sysdoc.toml` file contains metadata about a systems engineering document. T
 |-------|------|----------|-------------|
 | `document_id` | String | Yes | Unique identifier for the document (e.g., "SDD-001", "SRS-2024-001") |
 | `document_title` | String | Yes | Human-readable title of the document |
+| `document_subtitle` | String | No | Optional subtitle (used for dc:subject in DOCX, defaults to "type - standard") |
 | `document_type` | String | Yes | Type of document (SSS, SSDD, SDD, SRS, ICD, STP, STD, STR, etc.) |
 | `document_standard` | String | Yes | Standard or DID the document follows (e.g., "DI-IPSC-81435B") |
 | `document_template` | String | Yes | Template used to create the document (for tracking purposes) |
@@ -28,6 +29,7 @@ The `sysdoc.toml` file contains metadata about a systems engineering document. T
 ```toml
 document_id = "SDD-001"
 document_title = "Flight Control Software Design Description"
+document_subtitle = "Avionics Control System"
 document_type = "SDD"
 document_standard = "DI-IPSC-81435B"
 document_template = "sdd-standard-v1"
@@ -85,6 +87,6 @@ config.save("sysdoc.toml")?;
 ## Validation
 
 The schema enforces:
-- All fields are required (no optional fields)
+- Most fields are required, except `document_subtitle` which is optional
 - Email addresses should be valid (enforced by application logic, not schema)
 - Document IDs should be unique within your organization (enforced by process, not schema)

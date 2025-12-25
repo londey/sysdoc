@@ -26,6 +26,7 @@ For files like `sysdoc.toml`, `.gitignore`, `README.md`:
 content = """
 document_id = "SDD-XXX"
 document_title = "Software Design Description"
+# document_subtitle = "Optional subtitle"
 ...
 """
 ```
@@ -68,6 +69,7 @@ template_spec = "DI-IPSC-81435B"
 content = """
 document_id = "SDD-XXX"
 document_title = "Software Design Description"
+# document_subtitle = "Optional subtitle"
 document_type = "SDD"
 document_standard = "DI-IPSC-81435B"
 document_template = "sdd-standard-v1"

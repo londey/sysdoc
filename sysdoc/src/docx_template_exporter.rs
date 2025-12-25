@@ -877,7 +877,11 @@ fn update_or_create_core_properties(
     // Prepare values
     let title = escape_xml(&metadata.title);
     let creator = escape_xml(&metadata.owner.name);
-    let subject = escape_xml(&format!("{} - {}", metadata.doc_type, metadata.standard));
+    let subject = if let Some(subtitle) = &metadata.subtitle {
+        escape_xml(subtitle)
+    } else {
+        escape_xml(&format!("{} - {}", metadata.doc_type, metadata.standard))
+    };
 
     // Build XML
     let mut xml = String::with_capacity(1024);

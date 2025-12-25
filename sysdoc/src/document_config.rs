@@ -13,6 +13,9 @@ pub struct DocumentConfig {
     /// Human-readable document title
     pub document_title: String,
 
+    /// Optional document subtitle (used for dc:subject in DOCX)
+    pub document_subtitle: Option<String>,
+
     /// Document owner/author information
     pub document_owner: Person,
 
@@ -112,6 +115,7 @@ mod tests {
         let config = DocumentConfig {
             document_id: "SDD-001".to_string(),
             document_title: "Flight Control Software Design Description".to_string(),
+            document_subtitle: Some("Avionics Control System".to_string()),
             document_owner: Person {
                 name: "John Doe".to_string(),
                 email: "john.doe@example.com".to_string(),
@@ -152,6 +156,7 @@ mod tests {
         let toml_content = r#"
 document_id = "SRS-2024-001"
 document_title = "Satellite Communication System Requirements"
+document_subtitle = "Ground Station Interface"
 document_type = "SRS"
 document_standard = "DI-IPSC-81433A"
 document_template = "srs-standard-v2"
