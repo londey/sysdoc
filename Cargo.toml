@@ -26,7 +26,8 @@ docx-rs = "0.4"
 imagesize = "0.13"
 zip = "2.2"
 base64 = "0.22"
-genpdf = "0.2"
+genpdf = { version = "0.2", features = ["images"] }
+image = { version = "0.23", default-features = false, features = ["jpeg", "png"] }
 
 # [patch.crates-io]
 # docx-rust = { path = "C:/Development/docx-rs" }
