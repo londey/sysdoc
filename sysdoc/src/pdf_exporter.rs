@@ -10,8 +10,8 @@
 
 use crate::source_model::{ImageFormat, ListItem, MarkdownBlock, MarkdownSection, TextRun};
 use crate::unified_document::UnifiedDocument;
-use genpdf::elements::{Break, Image, PageBreak, Paragraph};
-use genpdf::style::Style;
+use genpdf::elements::{Break, Image, PageBreak, Paragraph, TableLayout};
+use genpdf::style::{Color, Style};
 use genpdf::{Alignment, Element};
 use image::GenericImageView;
 use std::path::Path;
@@ -426,32 +426,53 @@ fn add_inline_table(
     headers: &[Vec<TextRun>],
     rows: &[Vec<Vec<TextRun>>],
 ) -> Result<(), PdfExportError> {
-    // Add header row (bold)
-    let header_text: Vec<String> = headers
-        .iter()
-        .map(|cell_runs| cell_runs.iter().map(|r| r.text.as_str()).collect())
-        .collect();
-
-    if !header_text.is_empty() {
-        let header_line = header_text.join(" | ");
-        pdf_doc.push(Paragraph::new(header_line).styled(Style::new().bold()));
-
-        // Add separator
-        let sep = "-".repeat(80);
-        pdf_doc.push(Paragraph::new(sep));
+    if headers.is_empty() {
+        return Ok(());
     }
+
+    // Determine number of columns
+    let num_cols = headers.len();
+
+    // Create table layout with equal column widths
+    let mut table = TableLayout::new(vec![1; num_cols]);
+    table.set_cell_decorator(genpdf::elements::FrameCellDecorator::new(true, true, false));
+
+    // Add header row with bold styling
+    let mut header_row = table.row();
+    for cell_runs in headers {
+        let cell_text: String = cell_runs.iter().map(|r| r.text.as_str()).collect();
+        // Add padding using spaces
+        let padded_text = format!(" {} ", cell_text);
+        let para = Paragraph::new(&padded_text)
+            .styled(Style::new().bold().with_color(Color::Rgb(0, 0, 0)));
+        header_row = header_row.element(para);
+    }
+    header_row.push().map_err(|e| PdfExportError::PdfError(format!("Failed to add table header row: {}", e)))?;
 
     // Add data rows
     for row in rows {
-        let row_parts: Vec<String> = row
-            .iter()
-            .map(|cell_runs| cell_runs.iter().map(|r| r.text.as_str()).collect())
-            .collect();
+        let mut data_row = table.row();
 
-        let row_text = row_parts.join(" | ");
-        pdf_doc.push(Paragraph::new(row_text));
+        // Add actual cells
+        let actual_cols = row.len().min(num_cols);
+        for cell_runs in row.iter().take(actual_cols) {
+            let cell_text: String = cell_runs.iter().map(|r| r.text.as_str()).collect();
+            // Add padding using spaces
+            let padded_text = format!(" {} ", cell_text);
+            let para = Paragraph::new(&padded_text);
+            data_row = data_row.element(para);
+        }
+
+        // Fill missing cells with empty content if row has fewer cells than headers
+        for _ in actual_cols..num_cols {
+            let para = Paragraph::new(" ");
+            data_row = data_row.element(para);
+        }
+
+        data_row.push().map_err(|e| PdfExportError::PdfError(format!("Failed to add table data row: {}", e)))?;
     }
 
+    pdf_doc.push(table);
     Ok(())
 }
 
@@ -464,22 +485,52 @@ fn add_csv_table(
         return Ok(());
     }
 
+    // Determine number of columns from first row
+    let num_cols = data.first().map(|row| row.len()).unwrap_or(0);
+    if num_cols == 0 {
+        return Ok(());
+    }
+
+    // Create table layout with equal column widths
+    let mut table = TableLayout::new(vec![1; num_cols]);
+    table.set_cell_decorator(genpdf::elements::FrameCellDecorator::new(true, true, false));
+
     // First row is header (bold)
     if let Some(header) = data.first() {
-        let header_line = header.join(" | ");
-        pdf_doc.push(Paragraph::new(header_line).styled(Style::new().bold()));
-
-        // Add separator
-        let sep = "-".repeat(80);
-        pdf_doc.push(Paragraph::new(sep));
+        let mut header_row = table.row();
+        for cell_text in header {
+            // Add padding using spaces
+            let padded_text = format!(" {} ", cell_text);
+            let para = Paragraph::new(&padded_text)
+                .styled(Style::new().bold().with_color(Color::Rgb(0, 0, 0)));
+            header_row = header_row.element(para);
+        }
+        header_row.push().map_err(|e| PdfExportError::PdfError(format!("Failed to add CSV table header row: {}", e)))?;
     }
 
     // Remaining rows are data
     for row in data.iter().skip(1) {
-        let row_text = row.join(" | ");
-        pdf_doc.push(Paragraph::new(row_text));
+        let mut data_row = table.row();
+
+        // Add actual cells
+        let actual_cols = row.len().min(num_cols);
+        for cell_text in row.iter().take(actual_cols) {
+            // Add padding using spaces
+            let padded_text = format!(" {} ", cell_text);
+            let para = Paragraph::new(&padded_text);
+            data_row = data_row.element(para);
+        }
+
+        // Fill missing cells with empty content if row has fewer cells than expected
+        for _ in actual_cols..num_cols {
+            let para = Paragraph::new(" ");
+            data_row = data_row.element(para);
+        }
+
+        data_row.push().map_err(|e| PdfExportError::PdfError(format!("Failed to add CSV table data row: {}", e)))?;
     }
 
+    pdf_doc.push(table);
     Ok(())
 }
 
