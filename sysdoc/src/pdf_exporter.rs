@@ -12,7 +12,7 @@ use crate::source_model::{ImageFormat, ListItem, MarkdownBlock, MarkdownSection,
 use crate::unified_document::UnifiedDocument;
 use genpdf::elements::{Break, Image, PageBreak, Paragraph, TableLayout};
 use genpdf::style::{Color, Style};
-use genpdf::{Alignment, Element};
+use genpdf::{Alignment, Context, Element, Margins, Mm, Position, Size};
 use image::GenericImageView;
 use std::path::Path;
 use thiserror::Error;
@@ -38,6 +38,69 @@ pub enum PdfExportError {
     ImageError(String),
 }
 
+/// Custom page decorator with footer support for page numbers
+struct PageNumberFooterDecorator {
+    margins: Margins,
+    page: usize,
+    total_pages: usize,
+}
+
+impl PageNumberFooterDecorator {
+    fn new(total_pages: usize) -> Self {
+        Self {
+            margins: Margins::trbl(15, 15, 15, 15), // top, right, bottom, left in mm
+            page: 0,
+            total_pages,
+        }
+    }
+}
+
+impl genpdf::PageDecorator for PageNumberFooterDecorator {
+    fn decorate_page<'a>(
+        &mut self,
+        context: &Context,
+        mut area: genpdf::render::Area<'a>,
+        style: Style,
+    ) -> Result<genpdf::render::Area<'a>, genpdf::error::Error> {
+        // Increment page counter
+        self.page += 1;
+
+        // Apply margins
+        area.add_margins(self.margins);
+
+        // Create footer with page number
+        let footer_text = format!("Page {} of {}", self.page, self.total_pages);
+
+        // Estimate footer height (one line of 10pt text is approximately 4-5mm)
+        let footer_height = Mm::from(5.0);
+        let footer_spacing = Mm::from(5.0); // Additional spacing above footer
+
+        // Calculate footer position (bottom of page, right-aligned)
+        // Use the full area height before reduction
+        let footer_y = area.size().height - footer_height - footer_spacing;
+
+        // Clone the area BEFORE reducing it for the footer
+        let mut footer_area = area.clone();
+        footer_area.add_offset(Position::new(Mm::from(0.0), footer_y));
+
+        // Create and position the footer at the bottom
+        let mut footer = Paragraph::new(&footer_text);
+        footer.set_alignment(Alignment::Right);
+        let mut footer_element = footer.styled(Style::new().with_font_size(10));
+
+        // Render the footer
+        footer_element.render(context, footer_area, style)?;
+
+        // Reduce the available content area to not overlap with footer
+        area.set_size(Size::new(
+            area.size().width,
+            area.size().height - footer_height - footer_spacing - Mm::from(5.0), // Extra spacing
+        ));
+
+        Ok(area)
+    }
+}
+
 /// Export a unified document to PDF
 ///
 /// # Parameters
@@ -48,7 +111,94 @@ pub enum PdfExportError {
 /// * `Ok(())` - Successfully exported to PDF
 /// * `Err(PdfExportError)` - Error during export
 pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), PdfExportError> {
-    // Create font family from embedded fonts
+    // First pass: render to temporary file to count pages
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join(format!("sysdoc_temp_{}.pdf", std::process::id()));
+
+    let page_count = {
+        let font_family = create_font_family()?;
+        let mut pdf_doc = genpdf::Document::new(font_family);
+        pdf_doc.set_title(&doc.metadata.title);
+
+        // Use simple decorator for first pass
+        let mut decorator = genpdf::SimplePageDecorator::new();
+        decorator.set_margins(15);
+        pdf_doc.set_page_decorator(decorator);
+
+        // Add all content
+        add_all_content(&mut pdf_doc, doc)?;
+
+        // Render to temporary file
+        pdf_doc
+            .render_to_file(&temp_file)
+            .map_err(|e| PdfExportError::PdfError(format!("Failed to render PDF for page counting: {}", e)))?;
+
+        // Count pages by reading the temporary PDF
+        count_pdf_pages(&temp_file)?
+    };
+
+    // Clean up temporary file
+    let _ = std::fs::remove_file(&temp_file);
+
+    // Second pass: render with page numbers showing total
+    let font_family = create_font_family()?;
+    let mut pdf_doc = genpdf::Document::new(font_family);
+
+    // Set document title metadata
+    pdf_doc.set_title(&doc.metadata.title);
+
+    // Set custom page decorator with page numbers in footer (bottom right)
+    let decorator = PageNumberFooterDecorator::new(page_count);
+    pdf_doc.set_page_decorator(decorator);
+
+    // Add all content
+    add_all_content(&mut pdf_doc, doc)?;
+
+    // Write to final file
+    pdf_doc
+        .render_to_file(output_path)
+        .map_err(|e| PdfExportError::PdfError(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Count the number of pages in a PDF file
+fn count_pdf_pages(pdf_path: &Path) -> Result<usize, PdfExportError> {
+    // Read the PDF file
+    let data = std::fs::read(pdf_path)
+        .map_err(|e| PdfExportError::PdfError(format!("Failed to read temporary PDF: {}", e)))?;
+
+    // Count occurrences of "/Type /Page" or "/Type/Page" in the PDF
+    // This is a simple heuristic that works for most PDFs
+    let pdf_str = String::from_utf8_lossy(&data);
+
+    // Try different patterns that might appear in the PDF
+    let mut page_count = pdf_str.matches("/Type /Page").count();
+
+    if page_count == 0 {
+        page_count = pdf_str.matches("/Type/Page").count();
+    }
+
+    if page_count == 0 {
+        // Try counting page objects by looking for page dictionaries
+        // Look for "/Type /Page\n" or "/Type /Page " patterns
+        page_count = pdf_str.split("/Type").filter(|s| {
+            let trimmed = s.trim_start();
+            trimmed.starts_with("/Page") || trimmed.starts_with(" /Page")
+        }).count();
+    }
+
+    if page_count == 0 {
+        return Err(PdfExportError::PdfError(
+            "Failed to count pages in PDF - no page objects found".to_string()
+        ));
+    }
+
+    Ok(page_count)
+}
+
+/// Helper function to create font family from embedded fonts
+fn create_font_family() -> Result<genpdf::fonts::FontFamily<genpdf::fonts::FontData>, PdfExportError> {
     let font_regular = genpdf::fonts::FontData::new(FONT_REGULAR.to_vec(), None)
         .map_err(|e| PdfExportError::PdfError(format!("Failed to load regular font: {}", e)))?;
     let font_bold = genpdf::fonts::FontData::new(FONT_BOLD.to_vec(), None)
@@ -58,45 +208,32 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), PdfExport
     let font_bold_italic = genpdf::fonts::FontData::new(FONT_BOLD_ITALIC.to_vec(), None)
         .map_err(|e| PdfExportError::PdfError(format!("Failed to load bold italic font: {}", e)))?;
 
-    let font_family = genpdf::fonts::FontFamily {
+    Ok(genpdf::fonts::FontFamily {
         regular: font_regular,
         bold: font_bold,
         italic: font_italic,
         bold_italic: font_bold_italic,
-    };
+    })
+}
 
-    let mut pdf_doc = genpdf::Document::new(font_family);
-
-    // Set document title metadata
-    pdf_doc.set_title(&doc.metadata.title);
-
-    // Set minimal page decorator with margins
-    let mut decorator = genpdf::SimplePageDecorator::new();
-    decorator.set_margins(15); // 15mm margins
-
-    pdf_doc.set_page_decorator(decorator);
-
+/// Helper function to add all content to a PDF document
+fn add_all_content(pdf_doc: &mut genpdf::Document, doc: &UnifiedDocument) -> Result<(), PdfExportError> {
     // Add title page
-    add_title_page(&mut pdf_doc, doc)?;
+    add_title_page(pdf_doc, doc)?;
 
     // Add page break before TOC
     pdf_doc.push(PageBreak::new());
 
     // Add table of contents
-    add_table_of_contents(&mut pdf_doc, doc)?;
+    add_table_of_contents(pdf_doc, doc)?;
 
     // Add page break before content
     pdf_doc.push(PageBreak::new());
 
     // Add all sections
     for section in &doc.sections {
-        add_section(&mut pdf_doc, section)?;
+        add_section(pdf_doc, section)?;
     }
-
-    // Write to file
-    pdf_doc
-        .render_to_file(output_path)
-        .map_err(|e| PdfExportError::PdfError(e.to_string()))?;
 
     Ok(())
 }
