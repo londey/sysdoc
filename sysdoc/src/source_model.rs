@@ -4,7 +4,7 @@
 //! where markdown files, images, and CSV files are loaded and validated.
 
 use crate::document_config::DocumentConfig;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // Submodules
 mod blocks;
@@ -161,26 +161,48 @@ impl SourceModel {
 
         for md_file in &self.markdown_files {
             for section in &md_file.sections {
-                // Only check sections that have metadata with a section_id
-                if let Some(metadata) = &section.metadata {
-                    if let Some(section_id) = &metadata.section_id {
-                        // Check if we've seen this section_id before
-                        if let Some(first_location) = section_id_locations.get(section_id) {
-                            errors.push(ValidationError::DuplicateSectionId {
-                                section_id: section_id.clone(),
-                                first_location: first_location.clone(),
-                                second_location: md_file.path.clone(),
-                            });
-                        } else {
-                            // First time seeing this section_id, record its location
-                            section_id_locations.insert(section_id.clone(), md_file.path.clone());
-                        }
-                    }
-                }
+                check_section_id_uniqueness(
+                    section,
+                    &md_file.path,
+                    &mut section_id_locations,
+                    &mut errors,
+                );
             }
         }
 
         errors
+    }
+}
+
+/// Helper function to check if a section_id is unique and record or report duplicates
+fn check_section_id_uniqueness(
+    section: &MarkdownSection,
+    file_path: &Path,
+    section_id_locations: &mut std::collections::HashMap<String, PathBuf>,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Only check sections that have metadata with a section_id
+    let Some(section_id) = section
+        .metadata
+        .as_ref()
+        .and_then(|m| m.section_id.as_ref())
+    else {
+        return;
+    };
+
+    // Check if we've seen this section_id before
+    match section_id_locations.get(section_id) {
+        Some(first_location) => {
+            errors.push(ValidationError::DuplicateSectionId {
+                section_id: section_id.clone(),
+                first_location: first_location.clone(),
+                second_location: file_path.to_path_buf(),
+            });
+        }
+        None => {
+            // First time seeing this section_id, record its location
+            section_id_locations.insert(section_id.clone(), file_path.to_path_buf());
+        }
     }
 }
 
@@ -218,7 +240,7 @@ mod tests {
         let mut model = SourceModel::new(PathBuf::from("/test"), test_config());
 
         // Create first markdown file with section_id "REQ-001"
-        let mut file1 = MarkdownSource {
+        let file1 = MarkdownSource {
             path: PathBuf::from("file1.md"),
             absolute_path: PathBuf::from("/test/file1.md"),
             section_number: SectionNumber::parse("01").unwrap(),
@@ -239,7 +261,7 @@ mod tests {
         };
 
         // Create second markdown file with duplicate section_id "REQ-001"
-        let mut file2 = MarkdownSource {
+        let file2 = MarkdownSource {
             path: PathBuf::from("file2.md"),
             absolute_path: PathBuf::from("/test/file2.md"),
             section_number: SectionNumber::parse("02").unwrap(),
