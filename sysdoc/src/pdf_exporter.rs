@@ -8,9 +8,9 @@
 //!
 //! Uses Liberation Sans fonts embedded in the binary (SIL Open Font License 1.1)
 
-use crate::source_model::{ListItem, MarkdownBlock, MarkdownSection, TextRun};
+use crate::source_model::{ImageFormat, ListItem, MarkdownBlock, MarkdownSection, TextRun};
 use crate::unified_document::UnifiedDocument;
-use genpdf::elements::{Break, PageBreak, Paragraph};
+use genpdf::elements::{Break, Image, PageBreak, Paragraph};
 use genpdf::style::Style;
 use genpdf::{Alignment, Element};
 use std::path::Path;
@@ -306,29 +306,38 @@ fn add_block(
         }
 
         MarkdownBlock::Image {
-            path: _,
-            absolute_path: _,
+            path,
+            absolute_path,
             alt_text,
             title: _,
-            format: _,
+            format,
             exists,
         } => {
             if !exists {
                 pdf_doc.push(
-                    Paragraph::new("[Image file not found]").styled(Style::new().italic()),
+                    Paragraph::new(format!("[Image file not found: {}]", path.display()))
+                        .styled(Style::new().italic()),
                 );
             } else {
-                // Add placeholder for image
-                let placeholder = format!("[Image: {}]", alt_text);
-                let mut img_para = Paragraph::new(placeholder);
-                img_para.set_alignment(Alignment::Center);
-                pdf_doc.push(img_para.styled(Style::new().italic()));
-
-                // Add alt text
-                if !alt_text.is_empty() {
-                    let mut alt_para = Paragraph::new(alt_text);
-                    alt_para.set_alignment(Alignment::Center);
-                    pdf_doc.push(alt_para.styled(Style::new().with_font_size(10).italic()));
+                // Try to load and embed the actual image
+                match load_and_embed_image(pdf_doc, absolute_path, alt_text, format) {
+                    Ok(_) => {
+                        // Image embedded successfully
+                        // Add caption if alt text is provided
+                        if !alt_text.is_empty() {
+                            let mut caption = Paragraph::new(format!("Figure: {}", alt_text));
+                            caption.set_alignment(Alignment::Center);
+                            pdf_doc.push(caption.styled(Style::new().with_font_size(10).italic()));
+                        }
+                    }
+                    Err(e) => {
+                        // Fall back to placeholder if image loading fails
+                        log::warn!("Failed to embed image {}: {}", path.display(), e);
+                        let placeholder = format!("[Image: {} (failed to load: {})]", alt_text, e);
+                        let mut img_para = Paragraph::new(placeholder);
+                        img_para.set_alignment(Alignment::Center);
+                        pdf_doc.push(img_para.styled(Style::new().italic()));
+                    }
                 }
             }
             pdf_doc.push(Break::new(0.5));
@@ -474,6 +483,140 @@ fn add_csv_table(
         let row_text = row.join(" | ");
         pdf_doc.push(Paragraph::new(row_text));
     }
+
+    Ok(())
+}
+
+/// Load an image file and embed it in the PDF
+///
+/// # Parameters
+/// * `pdf_doc` - The PDF document to add the image to
+/// * `image_path` - Absolute path to the image file
+/// * `alt_text` - Alternative text for the image (used for error messages)
+/// * `format` - Image format (PNG, JPEG, etc.)
+///
+/// # Returns
+/// * `Ok(())` - Image successfully embedded
+/// * `Err(PdfExportError)` - Failed to load or embed image
+fn load_and_embed_image(
+    pdf_doc: &mut genpdf::Document,
+    image_path: &Path,
+    _alt_text: &str,
+    format: &ImageFormat,
+) -> Result<(), PdfExportError> {
+    // Read the image file
+    let image_bytes = std::fs::read(image_path).map_err(|e| {
+        PdfExportError::PdfError(format!(
+            "Failed to read image file {}: {}",
+            image_path.display(),
+            e
+        ))
+    })?;
+
+    // Load image based on format and convert to RGB if needed (genpdf doesn't support alpha channel)
+    let image = match format {
+        ImageFormat::Jpeg => {
+            let dynamic_image = image::load_from_memory_with_format(&image_bytes, image::ImageFormat::Jpeg)
+                .map_err(|e| {
+                    PdfExportError::PdfError(format!(
+                        "Failed to decode JPEG image {}: {}",
+                        image_path.display(),
+                        e
+                    ))
+                })?;
+
+            Image::from_dynamic_image(dynamic_image)
+                .map_err(|e| {
+                    PdfExportError::PdfError(format!(
+                        "Failed to create PDF image from JPEG {}: {}",
+                        image_path.display(),
+                        e
+                    ))
+                })?
+        }
+        ImageFormat::Png => {
+            let dynamic_image = image::load_from_memory_with_format(&image_bytes, image::ImageFormat::Png)
+                .map_err(|e| {
+                    PdfExportError::PdfError(format!(
+                        "Failed to decode PNG image {}: {}",
+                        image_path.display(),
+                        e
+                    ))
+                })?;
+
+            // Convert RGBA to RGB if needed (genpdf doesn't support alpha channel)
+            // This composites transparency onto a white background
+            let rgb_image = match dynamic_image {
+                image::DynamicImage::ImageRgba8(rgba_img) => {
+                    // Create white background
+                    let (width, height) = rgba_img.dimensions();
+                    let mut rgb_img = image::RgbImage::new(width, height);
+
+                    // Composite each pixel onto white background
+                    for (x, y, pixel) in rgba_img.enumerate_pixels() {
+                        let alpha = pixel[3] as f32 / 255.0;
+                        let one_minus_alpha = 1.0 - alpha;
+
+                        // Alpha blend with white background (255, 255, 255)
+                        let r = ((pixel[0] as f32 * alpha) + (255.0 * one_minus_alpha)) as u8;
+                        let g = ((pixel[1] as f32 * alpha) + (255.0 * one_minus_alpha)) as u8;
+                        let b = ((pixel[2] as f32 * alpha) + (255.0 * one_minus_alpha)) as u8;
+
+                        rgb_img.put_pixel(x, y, image::Rgb([r, g, b]));
+                    }
+
+                    image::DynamicImage::ImageRgb8(rgb_img)
+                }
+                image::DynamicImage::ImageLumaA8(luma_a) => {
+                    // Convert grayscale with alpha to RGB
+                    let (width, height) = luma_a.dimensions();
+                    let mut rgb_img = image::RgbImage::new(width, height);
+
+                    for (x, y, pixel) in luma_a.enumerate_pixels() {
+                        let gray = pixel[0];
+                        let alpha = pixel[1] as f32 / 255.0;
+                        let one_minus_alpha = 1.0 - alpha;
+
+                        // Alpha blend grayscale with white background
+                        let value = ((gray as f32 * alpha) + (255.0 * one_minus_alpha)) as u8;
+                        rgb_img.put_pixel(x, y, image::Rgb([value, value, value]));
+                    }
+
+                    image::DynamicImage::ImageRgb8(rgb_img)
+                }
+                // For other formats, use to_rgb8() which should work fine
+                _ => image::DynamicImage::ImageRgb8(dynamic_image.to_rgb8())
+            };
+
+            Image::from_dynamic_image(rgb_image)
+                .map_err(|e| {
+                    PdfExportError::PdfError(format!(
+                        "Failed to create PDF image from PNG {}: {}",
+                        image_path.display(),
+                        e
+                    ))
+                })?
+        }
+        ImageFormat::Svg | ImageFormat::DrawIoSvg => {
+            return Err(PdfExportError::PdfError(format!(
+                "SVG images are not yet supported in PDF export: {}. Please convert to PNG or JPEG.",
+                image_path.display()
+            )))
+        }
+        ImageFormat::Other => {
+            return Err(PdfExportError::PdfError(format!(
+                "Unsupported image format for {}. Only JPEG and PNG are supported.",
+                image_path.display()
+            )))
+        }
+    };
+
+    // Add the image with center alignment
+    // Note: genpdf will handle scaling automatically to fit page width
+    let mut img_element = image;
+    img_element.set_alignment(Alignment::Center);
+
+    pdf_doc.push(img_element);
 
     Ok(())
 }
