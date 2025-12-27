@@ -12,9 +12,12 @@ use crate::source_model::{ImageFormat, ListItem, MarkdownBlock, MarkdownSection,
 use crate::unified_document::UnifiedDocument;
 use genpdf::elements::{Break, Image, PageBreak, Paragraph, TableLayout};
 use genpdf::style::{Color, Style};
-use genpdf::{Alignment, Context, Element, Margins, Mm, Position, Size};
+use genpdf::{Alignment, Context, Element, Margins, Mm, Position, RenderResult, Size};
 use image::GenericImageView;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
+use std::rc::Rc;
 use thiserror::Error;
 
 // Embedded Liberation Sans fonts (SIL Open Font License 1.1)
@@ -38,6 +41,68 @@ pub enum PdfExportError {
     ImageError(String),
 }
 
+/// Tracks which page each section appears on using shared state
+#[derive(Clone)]
+struct SectionPageTracker {
+    current_page: Rc<RefCell<usize>>,
+    pages: Rc<RefCell<HashMap<String, usize>>>,
+}
+
+impl SectionPageTracker {
+    fn new() -> Self {
+        Self {
+            current_page: Rc::new(RefCell::new(0)),
+            pages: Rc::new(RefCell::new(HashMap::new())),
+        }
+    }
+
+    fn set_current_page(&self, page: usize) {
+        *self.current_page.borrow_mut() = page;
+    }
+
+    fn mark_section(&self, section_id: String) {
+        let page = *self.current_page.borrow();
+        self.pages.borrow_mut().insert(section_id, page);
+    }
+
+    fn get_pages(&self) -> HashMap<String, usize> {
+        self.pages.borrow().clone()
+    }
+}
+
+/// Custom element that marks a section's page number during rendering
+struct SectionMarker {
+    section_id: String,
+    tracker: SectionPageTracker,
+}
+
+impl SectionMarker {
+    fn new(section_id: String, tracker: SectionPageTracker) -> Self {
+        Self {
+            section_id,
+            tracker,
+        }
+    }
+}
+
+impl Element for SectionMarker {
+    fn render(
+        &mut self,
+        _context: &Context,
+        _area: genpdf::render::Area<'_>,
+        _style: Style,
+    ) -> Result<RenderResult, genpdf::error::Error> {
+        // Mark the section with the current page number
+        self.tracker.mark_section(self.section_id.clone());
+
+        // This element doesn't actually render anything visible
+        Ok(RenderResult {
+            size: Size::new(Mm::from(0.0), Mm::from(0.0)),
+            has_more: false,
+        })
+    }
+}
+
 /// Custom page decorator with header and footer support
 /// Header: Document ID (left) and Version (right)
 /// Footer: Page X of Y (right-aligned)
@@ -47,16 +112,23 @@ struct PageNumberFooterDecorator {
     total_pages: usize,
     document_id: String,
     version: String,
+    tracker: Option<SectionPageTracker>,
 }
 
 impl PageNumberFooterDecorator {
-    fn new(total_pages: usize, document_id: String, version: Option<String>) -> Self {
+    fn new(
+        total_pages: usize,
+        document_id: String,
+        version: Option<String>,
+        tracker: Option<SectionPageTracker>,
+    ) -> Self {
         Self {
             margins: Margins::trbl(15, 15, 15, 15), // top, right, bottom, left in mm
             page: 0,
             total_pages,
             document_id,
             version: version.unwrap_or_else(|| "Draft".to_string()),
+            tracker,
         }
     }
 }
@@ -70,6 +142,11 @@ impl genpdf::PageDecorator for PageNumberFooterDecorator {
     ) -> Result<genpdf::render::Area<'a>, genpdf::error::Error> {
         // Increment page counter
         self.page += 1;
+
+        // Update tracker if present
+        if let Some(ref tracker) = self.tracker {
+            tracker.set_current_page(self.page);
+        }
 
         // Apply margins
         area.add_margins(self.margins);
@@ -157,8 +234,8 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), PdfExport
         decorator.set_margins(15);
         pdf_doc.set_page_decorator(decorator);
 
-        // Add all content
-        add_all_content(&mut pdf_doc, doc)?;
+        // Add all content (no tracking in first pass)
+        add_all_content(&mut pdf_doc, doc, None)?;
 
         // Render to temporary file
         pdf_doc
@@ -169,26 +246,68 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), PdfExport
         count_pdf_pages(&temp_file)?
     };
 
-    // Clean up temporary file
+    // Second pass: render to get section page numbers
+    let section_pages = {
+        let font_family = create_font_family()?;
+        let mut pdf_doc = genpdf::Document::new(font_family);
+        pdf_doc.set_title(&doc.metadata.title);
+
+        let section_tracker = SectionPageTracker::new();
+        let decorator = PageNumberFooterDecorator::new(
+            page_count,
+            doc.metadata.document_id.clone(),
+            doc.metadata.version.clone(),
+            Some(section_tracker.clone()),
+        );
+        pdf_doc.set_page_decorator(decorator);
+
+        // Track section page numbers
+        add_all_content(&mut pdf_doc, doc, Some(section_tracker.clone()))?;
+
+        let temp_file2 = temp_dir.join(format!("sysdoc_temp2_{}.pdf", std::process::id()));
+        pdf_doc
+            .render_to_file(&temp_file2)
+            .map_err(|e| PdfExportError::PdfError(format!("Failed to render PDF for section tracking: {}", e)))?;
+
+        let _ = std::fs::remove_file(&temp_file2);
+        section_tracker.get_pages()
+    };
+
+    // Clean up first temporary file
     let _ = std::fs::remove_file(&temp_file);
 
-    // Second pass: render with page numbers showing total
+    // Third pass: render final PDF with complete TOC
     let font_family = create_font_family()?;
     let mut pdf_doc = genpdf::Document::new(font_family);
 
     // Set document title metadata
     pdf_doc.set_title(&doc.metadata.title);
 
-    // Set custom page decorator with headers and footer
+    // Set custom page decorator with headers and footer (no tracker for final pass)
     let decorator = PageNumberFooterDecorator::new(
         page_count,
         doc.metadata.document_id.clone(),
         doc.metadata.version.clone(),
+        None,
     );
     pdf_doc.set_page_decorator(decorator);
 
-    // Add all content
-    add_all_content(&mut pdf_doc, doc)?;
+    // Add title page
+    add_title_page(&mut pdf_doc, doc)?;
+
+    // Add page break before TOC
+    pdf_doc.push(PageBreak::new());
+
+    // Add table of contents with page numbers
+    add_table_of_contents(&mut pdf_doc, doc, Some(&section_pages))?;
+
+    // Add page break before content
+    pdf_doc.push(PageBreak::new());
+
+    // Add all sections
+    for section in &doc.sections {
+        add_section(&mut pdf_doc, section, None)?;
+    }
 
     // Write to final file
     pdf_doc
@@ -253,22 +372,26 @@ fn create_font_family() -> Result<genpdf::fonts::FontFamily<genpdf::fonts::FontD
 }
 
 /// Helper function to add all content to a PDF document
-fn add_all_content(pdf_doc: &mut genpdf::Document, doc: &UnifiedDocument) -> Result<(), PdfExportError> {
+fn add_all_content(
+    pdf_doc: &mut genpdf::Document,
+    doc: &UnifiedDocument,
+    tracker: Option<SectionPageTracker>,
+) -> Result<(), PdfExportError> {
     // Add title page
     add_title_page(pdf_doc, doc)?;
 
     // Add page break before TOC
     pdf_doc.push(PageBreak::new());
 
-    // Add table of contents
-    add_table_of_contents(pdf_doc, doc)?;
+    // Add table of contents (without page numbers in tracking pass)
+    add_table_of_contents(pdf_doc, doc, None)?;
 
     // Add page break before content
     pdf_doc.push(PageBreak::new());
 
     // Add all sections
     for section in &doc.sections {
-        add_section(pdf_doc, section)?;
+        add_section(pdf_doc, section, tracker.as_ref())?;
     }
 
     Ok(())
@@ -340,6 +463,7 @@ fn add_metadata_row(pdf_doc: &mut genpdf::Document, label: &str, value: &str) {
 fn add_table_of_contents(
     pdf_doc: &mut genpdf::Document,
     doc: &UnifiedDocument,
+    section_pages: Option<&std::collections::HashMap<String, usize>>,
 ) -> Result<(), PdfExportError> {
     // TOC title
     pdf_doc
@@ -347,17 +471,56 @@ fn add_table_of_contents(
 
     pdf_doc.push(Break::new(1.0));
 
-    // Add each section to TOC
+    // Use consistent font size for all TOC entries
+    let toc_font_size = 11;
+
+    // Add each section to TOC using a table for proper alignment
     for section in &doc.sections {
         let indent = "  ".repeat(section.heading_level.saturating_sub(1));
-        let toc_entry = format!(
-            "{}{} {}",
-            indent, section.section_number, section.heading_text
-        );
+        let section_id = format!("{} {}", section.section_number, section.heading_text);
 
-        // Smaller font for deeper levels
-        let font_size = (12 - section.heading_level.saturating_sub(1).min(3)) as u8;
-        pdf_doc.push(Paragraph::new(toc_entry).styled(Style::new().with_font_size(font_size)));
+        if let Some(pages) = section_pages {
+            if let Some(page) = pages.get(&section_id) {
+                // Create a two-column table for proper alignment
+                // Column widths: 93% for content (with dots), 7% for page number
+                let mut table = TableLayout::new(vec![13, 1]);
+                table.set_cell_decorator(genpdf::elements::FrameCellDecorator::new(false, false, false));
+
+                let mut row = table.row();
+
+                // Left cell: section title with dots
+                // Calculate approximate dots needed based on indentation
+                let section_text = format!("{}{} {}", indent, section.section_number, section.heading_text);
+
+                // Estimate dots: reduce count for longer titles and deeper indents
+                let base_dots: usize = 80;
+                let indent_reduction = section.heading_level.saturating_sub(1) * 8;
+                let title_length_reduction = section_text.len().min(60);
+                let dots_count = base_dots.saturating_sub(indent_reduction).saturating_sub(title_length_reduction / 2).max(3);
+
+                let dots = " ".to_string() + &".".repeat(dots_count);
+                let left_cell = format!("{}{}", section_text, dots);
+                row = row.element(Paragraph::new(left_cell).styled(Style::new().with_font_size(toc_font_size)));
+
+                // Right cell: page number (right-aligned)
+                let mut page_para = Paragraph::new(format!("{}", page));
+                page_para.set_alignment(Alignment::Right);
+                row = row.element(page_para.styled(Style::new().with_font_size(toc_font_size)));
+
+                row.push().map_err(|e| PdfExportError::PdfError(format!("Failed to add TOC row: {}", e)))?;
+
+                pdf_doc.push(table);
+            } else {
+                // No page number available
+                let toc_entry = format!("{}{} {}", indent, section.section_number, section.heading_text);
+                pdf_doc.push(Paragraph::new(toc_entry).styled(Style::new().with_font_size(toc_font_size)));
+            }
+        } else {
+            // No page numbers at all (used during tracking pass)
+            let toc_entry = format!("{}{} {}", indent, section.section_number, section.heading_text);
+            pdf_doc.push(Paragraph::new(toc_entry).styled(Style::new().with_font_size(toc_font_size)));
+        }
+
         pdf_doc.push(Break::new(0.1));
     }
 
@@ -368,8 +531,15 @@ fn add_table_of_contents(
 fn add_section(
     pdf_doc: &mut genpdf::Document,
     section: &MarkdownSection,
+    tracker: Option<&SectionPageTracker>,
 ) -> Result<(), PdfExportError> {
     pdf_doc.push(Break::new(1.0));
+
+    // Add invisible section marker element that will record page number during rendering
+    if let Some(t) = tracker {
+        let section_id = format!("{} {}", section.section_number, section.heading_text);
+        pdf_doc.push(SectionMarker::new(section_id, t.clone()));
+    }
 
     // Section heading
     let heading_text = format!("{} {}", section.section_number, section.heading_text);
