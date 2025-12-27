@@ -38,19 +38,25 @@ pub enum PdfExportError {
     ImageError(String),
 }
 
-/// Custom page decorator with footer support for page numbers
+/// Custom page decorator with header and footer support
+/// Header: Document ID (left) and Version (right)
+/// Footer: Page X of Y (right-aligned)
 struct PageNumberFooterDecorator {
     margins: Margins,
     page: usize,
     total_pages: usize,
+    document_id: String,
+    version: String,
 }
 
 impl PageNumberFooterDecorator {
-    fn new(total_pages: usize) -> Self {
+    fn new(total_pages: usize, document_id: String, version: Option<String>) -> Self {
         Self {
             margins: Margins::trbl(15, 15, 15, 15), // top, right, bottom, left in mm
             page: 0,
             total_pages,
+            document_id,
+            version: version.unwrap_or_else(|| "Draft".to_string()),
         }
     }
 }
@@ -67,6 +73,28 @@ impl genpdf::PageDecorator for PageNumberFooterDecorator {
 
         // Apply margins
         area.add_margins(self.margins);
+
+        // Create header with document ID (left) and version (right)
+        let header_height = Mm::from(5.0);
+        let header_spacing = Mm::from(3.0);
+
+        // Render document ID on the left
+        let mut doc_id_para = Paragraph::new(&self.document_id);
+        doc_id_para.set_alignment(Alignment::Left);
+        let mut doc_id_element = doc_id_para.styled(Style::new().with_font_size(10));
+
+        let mut header_left_area = area.clone();
+        header_left_area.add_offset(Position::new(Mm::from(0.0), Mm::from(0.0)));
+        doc_id_element.render(context, header_left_area, style)?;
+
+        // Render version on the right
+        let mut version_para = Paragraph::new(&self.version);
+        version_para.set_alignment(Alignment::Right);
+        let mut version_element = version_para.styled(Style::new().with_font_size(10));
+
+        let mut header_right_area = area.clone();
+        header_right_area.add_offset(Position::new(Mm::from(0.0), Mm::from(0.0)));
+        version_element.render(context, header_right_area, style)?;
 
         // Create footer with page number
         let footer_text = format!("Page {} of {}", self.page, self.total_pages);
@@ -91,10 +119,14 @@ impl genpdf::PageDecorator for PageNumberFooterDecorator {
         // Render the footer
         footer_element.render(context, footer_area, style)?;
 
-        // Reduce the available content area to not overlap with footer
+        // Reduce the available content area to not overlap with header and footer
+        // Offset content to start below the header
+        area.add_offset(Position::new(Mm::from(0.0), header_height + header_spacing));
+
+        // Reduce height to account for both header and footer
         area.set_size(Size::new(
             area.size().width,
-            area.size().height - footer_height - footer_spacing - Mm::from(5.0), // Extra spacing
+            area.size().height - header_height - header_spacing - footer_height - footer_spacing - Mm::from(5.0),
         ));
 
         Ok(area)
@@ -147,8 +179,12 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), PdfExport
     // Set document title metadata
     pdf_doc.set_title(&doc.metadata.title);
 
-    // Set custom page decorator with page numbers in footer (bottom right)
-    let decorator = PageNumberFooterDecorator::new(page_count);
+    // Set custom page decorator with headers and footer
+    let decorator = PageNumberFooterDecorator::new(
+        page_count,
+        doc.metadata.document_id.clone(),
+        doc.metadata.version.clone(),
+    );
     pdf_doc.set_page_decorator(decorator);
 
     // Add all content
