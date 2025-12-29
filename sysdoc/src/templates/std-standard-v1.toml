@@ -230,7 +230,7 @@ Each test case section should include a sysdoc metadata block with:
 - traced_ids: IDs from the SRS requirements that this test case verifies
 """
 content = """
-```sysdoc
+```toml {sysdoc}
 section_id = "STD-TC-001"
 traced_ids = ["SRS-REQ-XXX"]
 ```
@@ -415,7 +415,7 @@ defined in the test case sections of this document.
 
 <!-- The table below is auto-generated showing each STD test case and the requirements it traces to -->
 
-```sysdoc
+```toml {sysdoc}
 generate_section_id_to_traced_ids_table = true
 ```
 
@@ -423,7 +423,7 @@ generate_section_id_to_traced_ids_table = true
 
 <!-- The table below is auto-generated showing each requirement and the STD test cases that address it -->
 
-```sysdoc
+```toml {sysdoc}
 generate_traced_ids_to_section_ids_table = true
 ```
 """

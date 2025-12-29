@@ -538,7 +538,7 @@ The sysdoc metadata block below will automatically generate traceability tables 
 all section_id and traced_ids defined throughout this document.
 """
 content = """
-```sysdoc
+```toml {sysdoc}
 generate_section_id_to_traced_ids_table = true
 generate_traced_ids_to_section_ids_table = true
 ```

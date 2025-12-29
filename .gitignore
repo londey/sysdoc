@@ -28,9 +28,11 @@ desktop.ini
 
 # Generated output files
 *.docx
-!sysdoc/src/templates/template.docx
-!tests/fixtures/template.docx
+*.pdf
 **/output.docx
 examples/**/output/
-target/test-output/
 nul
+target/test-output/
+
+!sysdoc/src/templates/template.docx
+!tests/fixtures/template.docx

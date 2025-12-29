@@ -111,7 +111,7 @@ Each requirement section should include a sysdoc metadata block with:
 - traced_ids: IDs from parent documents this requirement traces to (e.g., system requirements)
 """
 content = """
-```sysdoc
+```toml {sysdoc}
 section_id = "SRS-REQ-001"
 traced_ids = ["SSS-REQ-XXX"]
 ```
@@ -288,7 +288,7 @@ The sysdoc metadata block below will automatically generate traceability tables 
 all section_id and traced_ids defined throughout this document.
 """
 content = """
-```sysdoc
+```toml {sysdoc}
 generate_section_id_to_traced_ids_table = true
 generate_traced_ids_to_section_ids_table = true
 ```
