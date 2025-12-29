@@ -203,7 +203,10 @@ fn check_section_id_uniqueness(
         }
         None => {
             // First time seeing this section_id, record its location and line number
-            section_id_locations.insert(section_id.clone(), (file_path.to_path_buf(), section.line_number));
+            section_id_locations.insert(
+                section_id.clone(),
+                (file_path.to_path_buf(), section.line_number),
+            );
         }
     }
 }
