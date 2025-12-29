@@ -51,6 +51,15 @@ pub struct MarkdownParser {
 
     /// Current code block context (language, accumulated content)
     current_code_block: Option<CodeBlockContext>,
+
+    /// Source content for calculating line numbers
+    source_content: String,
+
+    /// Current line number being processed (1-indexed)
+    current_line_number: usize,
+
+    /// Source file path (relative to document root)
+    source_file: PathBuf,
 }
 
 /// Context for building a code block
@@ -95,6 +104,8 @@ struct SectionBuilder {
     blocks: Vec<MarkdownBlock>,
     /// Optional metadata parsed from a sysdoc code block
     metadata: Option<SectionMetadata>,
+    /// Line number where this section's heading appears (1-indexed)
+    line_number: usize,
 }
 
 impl MarkdownParser {
@@ -103,10 +114,15 @@ impl MarkdownParser {
     /// # Parameters
     /// * `document_root` - Root directory of the document for resolving relative paths
     /// * `file_section_number` - Section number of the markdown file (from filename)
+    /// * `source_file` - Path to the source file (relative to document root)
     ///
     /// # Returns
     /// * `MarkdownParser` - A new parser with empty state
-    pub fn new(document_root: PathBuf, file_section_number: SectionNumber) -> Self {
+    pub fn new(
+        document_root: PathBuf,
+        file_section_number: SectionNumber,
+        source_file: PathBuf,
+    ) -> Self {
         Self {
             formatting: TextFormatting::new(),
             current_runs: Vec::new(),
@@ -120,6 +136,9 @@ impl MarkdownParser {
             file_section_number,
             heading_counters: [0; 6],
             current_code_block: None,
+            source_content: String::new(),
+            current_line_number: 1,
+            source_file,
         }
     }
 
@@ -129,6 +148,7 @@ impl MarkdownParser {
     /// * `content` - Raw markdown content to parse
     /// * `document_root` - Root directory of the document for resolving relative image paths
     /// * `file_section_number` - Section number of the markdown file (from filename)
+    /// * `source_file` - Path to the source file (relative to document root)
     ///
     /// # Returns
     /// * `Ok(Vec<MarkdownSection>)` - Parsed sections with embedded CSV table blocks
@@ -142,15 +162,22 @@ impl MarkdownParser {
         content: &str,
         document_root: &Path,
         file_section_number: &SectionNumber,
+        source_file: &Path,
     ) -> Result<Vec<MarkdownSection>, SourceModelError> {
-        let mut parser = Self::new(document_root.to_path_buf(), file_section_number.clone());
+        let mut parser = Self::new(
+            document_root.to_path_buf(),
+            file_section_number.clone(),
+            source_file.to_path_buf(),
+        );
+        parser.source_content = content.to_string();
         let mut options = pulldown_cmark::Options::empty();
         options.insert(pulldown_cmark::Options::ENABLE_TABLES);
         options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
         let md_parser = pulldown_cmark::Parser::new_ext(content, options);
 
-        for event in md_parser {
-            parser.process_event(event);
+        for (event, range) in md_parser.into_offset_iter() {
+            let line_number = parser.byte_offset_to_line(range.start);
+            parser.process_event_with_line(event, line_number);
         }
 
         // Finalize any remaining content
@@ -349,8 +376,19 @@ impl MarkdownParser {
         Ok(())
     }
 
-    /// Process a single markdown event
-    fn process_event(&mut self, event: Event<'_>) {
+    /// Convert byte offset to line number (1-indexed)
+    fn byte_offset_to_line(&self, offset: usize) -> usize {
+        // Count newlines up to the offset
+        self.source_content[..offset.min(self.source_content.len())]
+            .chars()
+            .filter(|&c| c == '\n')
+            .count()
+            + 1 // 1-indexed
+    }
+
+    /// Process a single markdown event with line number tracking
+    fn process_event_with_line(&mut self, event: Event<'_>, line_number: usize) {
+        self.current_line_number = line_number;
         match event {
             Event::Start(tag) => self.handle_start_tag(tag),
             Event::End(tag_end) => self.handle_end_tag(tag_end),
@@ -619,6 +657,7 @@ impl MarkdownParser {
             heading_text: String::new(),
             blocks: Vec::new(),
             metadata: None,
+            line_number: self.current_line_number,
         });
 
         self.current_runs.clear();
@@ -945,6 +984,8 @@ impl MarkdownParser {
             heading_level: section.level,
             heading_text: section.heading_text,
             section_number,
+            line_number: section.line_number,
+            source_file: self.source_file.clone(),
             content: section.blocks,
             metadata: section.metadata,
         }
@@ -1170,7 +1211,7 @@ mod tests {
         let file_section = SectionNumber::parse("01.02").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: h1 uses file section number directly (filename encodes section number)
         assert_eq!(sections.len(), 1);
@@ -1194,7 +1235,7 @@ Content 3"#;
         let file_section = SectionNumber::parse("01.02").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: h1 uses file number directly, h2+ add counters
         assert_eq!(sections.len(), 3);
@@ -1210,7 +1251,7 @@ Content 3"#;
         let file_section = SectionNumber::parse("01.02.00").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: .00 should be stripped, h1 uses file section number directly
         assert_eq!(sections.len(), 1);
@@ -1232,7 +1273,7 @@ Content 3"#;
         let file_section = SectionNumber::parse("01").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: h1 = file section, h2+ add counters
         assert_eq!(sections.len(), 5);
@@ -1261,7 +1302,7 @@ Content 3"#;
         let file_section = SectionNumber::parse("01.02").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: h6 exceeds max depth and falls back to base file number
         assert_eq!(sections.len(), 6);
@@ -1291,7 +1332,7 @@ Content 3"#;
         let file_section = SectionNumber::parse("01").unwrap();
 
         // Act: Parse the markdown
-        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section).unwrap();
+        let sections = MarkdownParser::parse(markdown, &PathBuf::from("."), &file_section, &PathBuf::from("test.md")).unwrap();
 
         // Assert: Counters should reset when returning to higher level
         assert_eq!(sections.len(), 6);
@@ -1318,7 +1359,7 @@ More text after.
 
         // Act: Parse with our parser
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Verify section structure
         assert_eq!(sections.len(), 1);
@@ -1348,7 +1389,7 @@ More text after.
         let markdown = "# Main Heading\n\nContent here.";
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should succeed
         assert!(result.is_ok());
@@ -1363,7 +1404,7 @@ More text after.
         let markdown = "Just a paragraph with no headings.";
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should fail with NoHeadingFound error
         assert!(result.is_err());
@@ -1376,7 +1417,7 @@ More text after.
         let markdown = "## Second Level Heading\n\nContent here.";
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should fail with FirstHeadingNotLevel1 error
         assert!(result.is_err());
@@ -1400,7 +1441,7 @@ Content 1
 Content 2"#;
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should fail with MultipleLevel1Headings error
         assert!(result.is_err());
@@ -1428,7 +1469,7 @@ Content 1
 Content 2"#;
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should succeed with 3 sections
         assert!(result.is_ok());
@@ -1459,7 +1500,7 @@ Deep content
 Very deep"#;
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should succeed with 4 sections
         assert!(result.is_ok());
@@ -1482,7 +1523,7 @@ Very deep"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create one section with one paragraph
         assert_eq!(sections.len(), 1);
@@ -1504,7 +1545,7 @@ Second paragraph.";
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create one section with two paragraphs
         assert_eq!(sections.len(), 1);
@@ -1526,7 +1567,7 @@ Second paragraph.";
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create one section with heading
         assert_eq!(sections.len(), 1);
@@ -1552,7 +1593,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create three sections
         assert_eq!(sections.len(), 3);
@@ -1571,7 +1612,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create one list block
         assert_eq!(sections.len(), 1);
@@ -1593,7 +1634,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create ordered list starting at 1
         assert_eq!(sections.len(), 1);
@@ -1615,7 +1656,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Code blocks without headings create a default section
         // But code blocks might not be implemented yet, so check what we got
@@ -1651,7 +1692,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create blockquote block
         assert_eq!(sections.len(), 1);
@@ -1669,7 +1710,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create paragraph, rule, paragraph
         assert_eq!(sections.len(), 1);
@@ -1692,7 +1733,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should parse with formatted runs
         assert_eq!(sections.len(), 1);
@@ -1715,7 +1756,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should parse with italic formatting
         assert_eq!(sections.len(), 1);
@@ -1736,7 +1777,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should parse with code formatting
         assert_eq!(sections.len(), 1);
@@ -1757,7 +1798,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should parse with link formatting
         assert_eq!(sections.len(), 1);
@@ -1782,7 +1823,7 @@ Content 3"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create a CsvTable block
         assert_eq!(sections.len(), 1);
@@ -1815,7 +1856,7 @@ Second table: [table2](table2.csv)"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create CsvTable blocks for each CSV
         assert_eq!(sections.len(), 1);
@@ -1842,7 +1883,7 @@ Second table: [table2](table2.csv)"#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should extract image
         assert_eq!(sections.len(), 1);
@@ -1882,7 +1923,7 @@ Second table: [table2](table2.csv)"#;
         let markdown = "";
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should fail with NoHeadingFound error
         assert!(result.is_err());
@@ -1895,7 +1936,7 @@ Second table: [table2](table2.csv)"#;
         let markdown = "   \n\n   \n";
 
         // Act: Parse the markdown
-        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number());
+        let result = MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md"));
 
         // Assert: Should fail with NoHeadingFound error
         assert!(result.is_err());
@@ -1928,7 +1969,7 @@ End of document."#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create two sections with various blocks
         assert_eq!(sections.len(), 2);
@@ -1950,7 +1991,7 @@ End of document."#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should parse list structure
         assert_eq!(sections.len(), 1);
@@ -1972,7 +2013,7 @@ End of document."#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should create blockquote with nested blocks
         assert_eq!(sections.len(), 1);
@@ -1992,7 +2033,7 @@ End of document."#;
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should preserve HTML
         assert_eq!(sections.len(), 1);
@@ -2024,7 +2065,7 @@ Some content here.
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should have metadata parsed
         assert_eq!(sections.len(), 1);
@@ -2052,7 +2093,7 @@ Some content.
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: sysdoc block should NOT appear as a CodeBlock
         let code_blocks: Vec<_> = sections[0]
@@ -2079,7 +2120,7 @@ fn main() {}
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: Should have a CodeBlock
         assert_eq!(sections.len(), 1);
@@ -2124,7 +2165,7 @@ Content 2.
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: First section should have a generated table
         assert_eq!(sections.len(), 3);
@@ -2186,7 +2227,7 @@ Content 2.
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: First section should have a generated table
         assert_eq!(sections.len(), 3);
@@ -2228,7 +2269,7 @@ No metadata here.
 
         // Act: Parse the markdown
         let sections =
-            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number()).unwrap();
+            MarkdownParser::parse(markdown, &PathBuf::from("."), &test_section_number(), &PathBuf::from("test.md")).unwrap();
 
         // Assert: No metadata and no generated tables
         assert_eq!(sections.len(), 1);
