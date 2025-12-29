@@ -84,6 +84,160 @@ impl SourceModel {
         }
     }
 
+    /// Generate traceability tables across all files
+    ///
+    /// This method should be called after validation and after all files are parsed.
+    /// It collects traceability data from ALL sections across ALL files, then generates
+    /// the requested traceability tables.
+    pub fn generate_traceability_tables(&mut self) {
+        // Collect all traceability data from all sections across all files
+        let section_to_traced = self.collect_all_section_traceability();
+
+        // Build reverse mapping: traced_id -> [section_ids]
+        let traced_to_sections = self.build_reverse_traceability(&section_to_traced);
+
+        // Generate tables for sections that request them
+        for md_file in self.markdown_files.iter_mut() {
+            for section in md_file.sections.iter_mut() {
+                Self::generate_tables_for_section(section, &section_to_traced, &traced_to_sections);
+            }
+        }
+    }
+
+    /// Generate traceability tables for a single section if requested
+    fn generate_tables_for_section(
+        section: &mut MarkdownSection,
+        section_to_traced: &[(String, Vec<String>)],
+        traced_to_sections: &std::collections::BTreeMap<String, Vec<String>>,
+    ) {
+        let Some(ref metadata) = section.metadata else {
+            return;
+        };
+
+        // Generate section_id -> traced_ids table
+        if let Some((col1, col2)) = metadata
+            .generate_section_id_to_traced_ids_table
+            .get_headers()
+        {
+            let table = Self::create_section_to_traced_table(section_to_traced, &col1, &col2);
+            section.content.push(table);
+        }
+
+        // Generate traced_id -> section_ids table
+        if let Some((col1, col2)) = metadata
+            .generate_traced_ids_to_section_ids_table
+            .get_headers()
+        {
+            let table = Self::create_traced_to_sections_table(traced_to_sections, &col1, &col2);
+            section.content.push(table);
+        }
+    }
+
+    /// Collect traceability data from ALL sections across ALL files
+    fn collect_all_section_traceability(&self) -> Vec<(String, Vec<String>)> {
+        let mut section_to_traced: Vec<(String, Vec<String>)> = self
+            .markdown_files
+            .iter()
+            .flat_map(|md_file| md_file.sections.iter())
+            .filter_map(Self::extract_section_traceability)
+            .collect();
+
+        // Sort by section_id
+        section_to_traced.sort_by(|a, b| a.0.cmp(&b.0));
+        section_to_traced
+    }
+
+    /// Extract traceability data from a section if it has both section_id and metadata
+    fn extract_section_traceability(section: &MarkdownSection) -> Option<(String, Vec<String>)> {
+        let metadata = section.metadata.as_ref()?;
+        let section_id = metadata.section_id.as_ref()?;
+        let traced = metadata.traced_ids.clone().unwrap_or_default();
+        Some((section_id.clone(), traced))
+    }
+
+    /// Build reverse mapping from traced_id to section_ids
+    fn build_reverse_traceability(
+        &self,
+        section_to_traced: &[(String, Vec<String>)],
+    ) -> std::collections::BTreeMap<String, Vec<String>> {
+        let mut traced_to_sections: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+
+        for (section_id, traced_ids) in section_to_traced {
+            for traced_id in traced_ids {
+                traced_to_sections
+                    .entry(traced_id.clone())
+                    .or_default()
+                    .push(section_id.clone());
+            }
+        }
+
+        // Sort the section_ids within each traced_id entry
+        for section_ids in traced_to_sections.values_mut() {
+            section_ids.sort();
+        }
+
+        traced_to_sections
+    }
+
+    /// Create a table mapping section_ids to their traced_ids
+    fn create_section_to_traced_table(
+        section_to_traced: &[(String, Vec<String>)],
+        col1_header: &str,
+        col2_header: &str,
+    ) -> MarkdownBlock {
+        let headers = vec![
+            vec![TextRun::new(col1_header.to_string())],
+            vec![TextRun::new(col2_header.to_string())],
+        ];
+
+        let rows: Vec<Vec<Vec<TextRun>>> = section_to_traced
+            .iter()
+            .map(|(section_id, traced_ids)| {
+                let mut sorted_traced = traced_ids.clone();
+                sorted_traced.sort();
+                vec![
+                    vec![TextRun::new(section_id.clone())],
+                    vec![TextRun::new(sorted_traced.join(", "))],
+                ]
+            })
+            .collect();
+
+        MarkdownBlock::InlineTable {
+            alignments: vec![Alignment::None, Alignment::None],
+            headers,
+            rows,
+        }
+    }
+
+    /// Create a table mapping traced_ids to section_ids that reference them
+    fn create_traced_to_sections_table(
+        traced_to_sections: &std::collections::BTreeMap<String, Vec<String>>,
+        col1_header: &str,
+        col2_header: &str,
+    ) -> MarkdownBlock {
+        let headers = vec![
+            vec![TextRun::new(col1_header.to_string())],
+            vec![TextRun::new(col2_header.to_string())],
+        ];
+
+        let rows: Vec<Vec<Vec<TextRun>>> = traced_to_sections
+            .iter()
+            .map(|(traced_id, section_ids)| {
+                vec![
+                    vec![TextRun::new(traced_id.clone())],
+                    vec![TextRun::new(section_ids.join(", "))],
+                ]
+            })
+            .collect();
+
+        MarkdownBlock::InlineTable {
+            alignments: vec![Alignment::None, Alignment::None],
+            headers,
+            rows,
+        }
+    }
+
     /// Validate all image references
     fn validate_image_references(&self) -> Vec<ValidationError> {
         self.markdown_files

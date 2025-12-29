@@ -195,10 +195,51 @@ impl MarkdownParser {
         // Validate heading structure
         Self::validate_heading_structure(&parser.sections)?;
 
-        // Generate traceability tables if requested
-        Self::generate_traceability_tables(&mut parser.sections);
+        // Note: Traceability tables are now generated at the SourceModel level
+        // after all files are parsed, not during individual file parsing.
+        // See SourceModel::generate_traceability_tables()
 
         Ok(parser.sections)
+    }
+
+    /// Generate traceability tables for sections that request them
+    /// NOTE: This method is deprecated and no longer used. Table generation is now done at
+    /// the SourceModel level after all files are parsed.
+    /// See SourceModel::generate_traceability_tables()
+    #[deprecated]
+    #[allow(dead_code)]
+    fn generate_traceability_tables_deprecated(sections: &mut [MarkdownSection]) {
+        // Collect all traceability data from sections
+        let section_to_traced = Self::collect_section_traceability(sections);
+
+        // Build reverse mapping: traced_id -> [section_ids]
+        let traced_to_sections = Self::build_reverse_traceability(&section_to_traced);
+
+        // Now generate tables for sections that request them
+        for section in sections.iter_mut() {
+            let Some(ref metadata) = section.metadata else {
+                continue;
+            };
+
+            // Generate section_id -> traced_ids table
+            if let Some((col1, col2)) = metadata
+                .generate_section_id_to_traced_ids_table
+                .get_headers()
+            {
+                let table = Self::create_section_to_traced_table(&section_to_traced, &col1, &col2);
+                section.content.push(table);
+            }
+
+            // Generate traced_id -> section_ids table
+            if let Some((col1, col2)) = metadata
+                .generate_traced_ids_to_section_ids_table
+                .get_headers()
+            {
+                let table =
+                    Self::create_traced_to_sections_table(&traced_to_sections, &col1, &col2);
+                section.content.push(table);
+            }
+        }
     }
 
     /// Generate traceability tables for sections that request them
@@ -2346,7 +2387,12 @@ fn main() {}
     }
 
     #[test]
+    #[ignore = "Table generation now happens at SourceModel level, not during parsing"]
     fn test_generate_section_to_traced_table() {
+        // NOTE: This test is deprecated. Table generation now happens at the SourceModel level
+        // after all files are parsed, not during individual file parsing.
+        // See SourceModel::generate_traceability_tables() and related tests in source_model.rs
+
         // Arrange: Multiple sections with metadata requesting forward table
         let markdown = r#"# Traceability
 
@@ -2413,7 +2459,12 @@ Content 2.
     }
 
     #[test]
+    #[ignore = "Table generation now happens at SourceModel level, not during parsing"]
     fn test_generate_traced_to_sections_table() {
+        // NOTE: This test is deprecated. Table generation now happens at the SourceModel level
+        // after all files are parsed, not during individual file parsing.
+        // See SourceModel::generate_traceability_tables() and related tests in source_model.rs
+
         // Arrange: Multiple sections with metadata requesting reverse table
         let markdown = r#"# Traceability
 

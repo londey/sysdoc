@@ -81,6 +81,10 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
     // Validate all references
     model.validate()?;
 
+    // Generate traceability tables after all files are parsed and validated
+    // This allows tables to include data from all sections across all files
+    model.generate_traceability_tables();
+
     Ok(model)
 }
 
