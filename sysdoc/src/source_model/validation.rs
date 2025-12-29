@@ -19,11 +19,13 @@ pub enum ValidationError {
         table_path: PathBuf,
     },
     /// Duplicate section_id found in metadata
-    #[error("Duplicate section_id '{section_id}' found in '{first_location}' and '{second_location}'", first_location = first_location.display(), second_location = second_location.display())]
+    #[error("Duplicate section_id '{section_id}':\n  First occurrence:  {first_location}:{first_line}\n  Second occurrence: {second_location}:{second_line}", first_location = first_location.display(), second_location = second_location.display())]
     DuplicateSectionId {
         section_id: String,
         first_location: PathBuf,
+        first_line: usize,
         second_location: PathBuf,
+        second_line: usize,
     },
     /// Multiple validation errors
     #[error("Multiple validation errors: {}", format_errors(.0))]

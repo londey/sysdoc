@@ -156,7 +156,7 @@ impl SourceModel {
     fn validate_unique_section_ids(&self) -> Vec<ValidationError> {
         use std::collections::HashMap;
 
-        let mut section_id_locations: HashMap<String, PathBuf> = HashMap::new();
+        let mut section_id_locations: HashMap<String, (PathBuf, usize)> = HashMap::new();
         let mut errors = Vec::new();
 
         for md_file in &self.markdown_files {
@@ -178,7 +178,7 @@ impl SourceModel {
 fn check_section_id_uniqueness(
     section: &MarkdownSection,
     file_path: &Path,
-    section_id_locations: &mut std::collections::HashMap<String, PathBuf>,
+    section_id_locations: &mut std::collections::HashMap<String, (PathBuf, usize)>,
     errors: &mut Vec<ValidationError>,
 ) {
     // Only check sections that have metadata with a section_id
@@ -192,16 +192,21 @@ fn check_section_id_uniqueness(
 
     // Check if we've seen this section_id before
     match section_id_locations.get(section_id) {
-        Some(first_location) => {
+        Some((first_location, first_line)) => {
             errors.push(ValidationError::DuplicateSectionId {
                 section_id: section_id.clone(),
                 first_location: first_location.clone(),
+                first_line: *first_line,
                 second_location: file_path.to_path_buf(),
+                second_line: section.line_number,
             });
         }
         None => {
-            // First time seeing this section_id, record its location
-            section_id_locations.insert(section_id.clone(), file_path.to_path_buf());
+            // First time seeing this section_id, record its location and line number
+            section_id_locations.insert(
+                section_id.clone(),
+                (file_path.to_path_buf(), section.line_number),
+            );
         }
     }
 }
@@ -250,6 +255,8 @@ mod tests {
                 heading_level: 1,
                 heading_text: "Section 1".to_string(),
                 section_number: SectionNumber::parse("01").unwrap(),
+                line_number: 1,
+                source_file: PathBuf::from("file1.md"),
                 content: Vec::new(),
                 metadata: Some(SectionMetadata {
                     section_id: Some("REQ-001".to_string()),
@@ -273,6 +280,8 @@ mod tests {
                 heading_level: 1,
                 heading_text: "Section 2".to_string(),
                 section_number: SectionNumber::parse("02").unwrap(),
+                line_number: 5,
+                source_file: PathBuf::from("file2.md"),
                 content: Vec::new(),
                 metadata: Some(SectionMetadata {
                     section_id: Some("REQ-001".to_string()),
@@ -299,11 +308,15 @@ mod tests {
                 ValidationError::DuplicateSectionId {
                     section_id,
                     first_location,
+                    first_line,
                     second_location,
+                    second_line,
                 } => {
                     assert_eq!(section_id, "REQ-001");
                     assert_eq!(first_location, &PathBuf::from("file1.md"));
+                    assert_eq!(*first_line, 1);
                     assert_eq!(second_location, &PathBuf::from("file2.md"));
+                    assert_eq!(*second_line, 5);
                 }
                 _ => panic!("Expected DuplicateSectionId error"),
             }
@@ -327,6 +340,8 @@ mod tests {
                 heading_level: 1,
                 heading_text: "Section 1".to_string(),
                 section_number: SectionNumber::parse("01").unwrap(),
+                line_number: 1,
+                source_file: PathBuf::from("file1.md"),
                 content: Vec::new(),
                 metadata: Some(SectionMetadata {
                     section_id: Some("REQ-001".to_string()),
@@ -349,6 +364,8 @@ mod tests {
                 heading_level: 1,
                 heading_text: "Section 2".to_string(),
                 section_number: SectionNumber::parse("02").unwrap(),
+                line_number: 1,
+                source_file: PathBuf::from("file2.md"),
                 content: Vec::new(),
                 metadata: Some(SectionMetadata {
                     section_id: Some("REQ-002".to_string()), // Different ID
@@ -367,5 +384,75 @@ mod tests {
         // Validation should pass with unique section_ids
         let result = model.validate();
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_duplicate_section_id_error_message_format() {
+        let mut model = SourceModel::new(PathBuf::from("/test"), test_config());
+
+        // Create first markdown file with section_id "REQ-001" at line 3
+        let file1 = MarkdownSource {
+            path: PathBuf::from("src/requirements/01.01_functional.md"),
+            absolute_path: PathBuf::from("/test/src/requirements/01.01_functional.md"),
+            section_number: SectionNumber::parse("01.01").unwrap(),
+            title: "Functional Requirements".to_string(),
+            raw_content: String::new(),
+            sections: vec![MarkdownSection {
+                heading_level: 1,
+                heading_text: "Functional Requirements".to_string(),
+                section_number: SectionNumber::parse("01.01").unwrap(),
+                line_number: 3,
+                source_file: PathBuf::from("src/requirements/01.01_functional.md"),
+                content: Vec::new(),
+                metadata: Some(SectionMetadata {
+                    section_id: Some("REQ-001".to_string()),
+                    traced_ids: None,
+                    generate_section_id_to_traced_ids_table:
+                        section_metadata::TableGeneration::Disabled,
+                    generate_traced_ids_to_section_ids_table:
+                        section_metadata::TableGeneration::Disabled,
+                }),
+            }],
+        };
+
+        // Create second markdown file with duplicate section_id "REQ-001" at line 15
+        let file2 = MarkdownSource {
+            path: PathBuf::from("src/requirements/01.02_nonfunctional.md"),
+            absolute_path: PathBuf::from("/test/src/requirements/01.02_nonfunctional.md"),
+            section_number: SectionNumber::parse("01.02").unwrap(),
+            title: "Non-Functional Requirements".to_string(),
+            raw_content: String::new(),
+            sections: vec![MarkdownSection {
+                heading_level: 1,
+                heading_text: "Non-Functional Requirements".to_string(),
+                section_number: SectionNumber::parse("01.02").unwrap(),
+                line_number: 15,
+                source_file: PathBuf::from("src/requirements/01.02_nonfunctional.md"),
+                content: Vec::new(),
+                metadata: Some(SectionMetadata {
+                    section_id: Some("REQ-001".to_string()),
+                    traced_ids: None,
+                    generate_section_id_to_traced_ids_table:
+                        section_metadata::TableGeneration::Disabled,
+                    generate_traced_ids_to_section_ids_table:
+                        section_metadata::TableGeneration::Disabled,
+                }),
+            }],
+        };
+
+        model.markdown_files.push(file1);
+        model.markdown_files.push(file2);
+
+        // Get the error and verify the message format
+        let result = model.validate();
+        assert!(result.is_err());
+
+        let error_message = format!("{}", result.unwrap_err());
+        println!("Error message:\n{}", error_message);
+
+        // Verify the error message includes both file paths with line numbers
+        assert!(error_message.contains("src/requirements/01.01_functional.md:3"));
+        assert!(error_message.contains("src/requirements/01.02_nonfunctional.md:15"));
+        assert!(error_message.contains("REQ-001"));
     }
 }

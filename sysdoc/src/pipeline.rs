@@ -32,8 +32,9 @@ pub fn parse_sources(root: &Path) -> Result<SourceModel, ParseError> {
 
     let mut model = SourceModel::new(root.to_path_buf(), config);
 
-    // Discover all markdown files with section numbering
-    let markdown_paths: Vec<PathBuf> = WalkDir::new(root)
+    // Discover all markdown files with section numbering in the src/ directory
+    let src_dir = root.join("src");
+    let markdown_paths: Vec<PathBuf> = WalkDir::new(&src_dir)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -347,14 +348,18 @@ fn build_section_hierarchy(
     all_sections.sort_by(|a, b| a.section_number.cmp(&b.section_number));
 
     // Check for duplicate section numbers using itertools
-    if let Some((_prev, curr)) = all_sections
+    if let Some((prev, curr)) = all_sections
         .iter()
         .tuple_windows()
         .find(|(a, b)| a.section_number == b.section_number)
     {
-        return Err(TransformError::DuplicateSectionNumber(
-            curr.section_number.clone(),
-        ));
+        return Err(TransformError::DuplicateSectionNumber {
+            section_number: curr.section_number.clone(),
+            first_file: prev.source_file.clone(),
+            first_line: prev.line_number,
+            second_file: curr.source_file.clone(),
+            second_line: curr.line_number,
+        });
     }
 
     Ok(all_sections)
@@ -442,8 +447,14 @@ pub enum TransformError {
     #[error("Invalid document structure: {0}")]
     InvalidStructure(String),
 
-    #[error("Duplicate section number found: {0}")]
-    DuplicateSectionNumber(SectionNumber),
+    #[error("Duplicate section number '{section_number}':\n  First occurrence:  {first_file}:{first_line}\n  Second occurrence: {second_file}:{second_line}", first_file = first_file.display(), second_file = second_file.display())]
+    DuplicateSectionNumber {
+        section_number: SectionNumber,
+        first_file: PathBuf,
+        first_line: usize,
+        second_file: PathBuf,
+        second_line: usize,
+    },
 }
 
 #[cfg(test)]

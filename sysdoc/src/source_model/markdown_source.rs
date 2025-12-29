@@ -50,6 +50,7 @@ impl MarkdownSource {
             &self.raw_content,
             document_root,
             &self.section_number,
+            &self.path,
         )?;
 
         // CSV tables are now embedded as CsvTable blocks within sections
@@ -72,6 +73,12 @@ pub struct MarkdownSection {
     /// For example, if the file is "01.02_foo.md" and this is the second h2 heading,
     /// the section_number would be [1, 2, 2] (01.02 from file + 2 from being the 2nd heading)
     pub section_number: SectionNumber,
+
+    /// Line number where this section's heading appears in the source file (1-indexed)
+    pub line_number: usize,
+
+    /// Source file path (relative to document root) where this section was parsed from
+    pub source_file: PathBuf,
 
     /// Parsed markdown content as structured blocks
     /// CSV tables are embedded as CsvTable blocks within this content

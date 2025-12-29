@@ -205,6 +205,8 @@ mod tests {
             heading_level: 1,
             heading_text: "Introduction".to_string(),
             section_number: SectionNumber::parse("1").unwrap(),
+            line_number: 1,
+            source_file: PathBuf::from("test.md"),
             content: vec![],
             metadata: None,
         };
