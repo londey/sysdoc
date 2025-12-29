@@ -675,7 +675,13 @@ impl MarkdownParser {
         };
 
         // Check if this is a sysdoc metadata block
-        if code_block.language.as_deref() == Some("sysdoc") {
+        // Supports both ```sysdoc and ```toml {sysdoc} syntax
+        let is_sysdoc = code_block
+            .language
+            .as_deref()
+            .is_some_and(|lang| lang == "sysdoc" || lang.contains("{sysdoc}"));
+
+        if is_sysdoc {
             self.handle_sysdoc_metadata(&code_block.content);
             return;
         }
