@@ -20,7 +20,8 @@ use typst::{Library, World};
 const FONT_REGULAR: &[u8] = include_bytes!("../../external/fonts/LiberationSans-Regular.ttf");
 const FONT_BOLD: &[u8] = include_bytes!("../../external/fonts/LiberationSans-Bold.ttf");
 const FONT_ITALIC: &[u8] = include_bytes!("../../external/fonts/LiberationSans-Italic.ttf");
-const FONT_BOLD_ITALIC: &[u8] = include_bytes!("../../external/fonts/LiberationSans-BoldItalic.ttf");
+const FONT_BOLD_ITALIC: &[u8] =
+    include_bytes!("../../external/fonts/LiberationSans-BoldItalic.ttf");
 
 // Embedded Liberation Mono fonts (monospace - for code blocks)
 const FONT_MONO_REGULAR: &[u8] = include_bytes!("../../external/fonts/LiberationMono-Regular.ttf");
@@ -44,6 +45,9 @@ pub enum TypstExportError {
     #[error("Font loading error: {0}")]
     FontError(String),
 }
+
+/// Type alias for file cache data (files by ID and path-to-ID mapping)
+type FileCache = (HashMap<FileId, Bytes>, HashMap<PathBuf, FileId>);
 
 /// Static library instance (created once, reused)
 static LIBRARY: OnceLock<LazyHash<Library>> = OnceLock::new();
@@ -133,9 +137,7 @@ impl SysdocWorld {
     }
 
     /// Load image files referenced in the document
-    fn load_files(
-        doc: &UnifiedDocument,
-    ) -> Result<(HashMap<FileId, Bytes>, HashMap<PathBuf, FileId>), TypstExportError> {
+    fn load_files(doc: &UnifiedDocument) -> Result<FileCache, TypstExportError> {
         let mut files = HashMap::new();
         let mut path_to_id = HashMap::new();
 
@@ -154,33 +156,38 @@ impl SysdocWorld {
         path_to_id: &mut HashMap<PathBuf, FileId>,
     ) -> Result<(), TypstExportError> {
         for block in blocks {
-            match block {
-                MarkdownBlock::Image {
-                    absolute_path,
-                    exists,
-                    ..
-                } => {
-                    if *exists {
-                        if let Ok(data) = std::fs::read(absolute_path) {
-                            let file_id = FileId::new(
-                                None,
-                                typst::syntax::VirtualPath::new(absolute_path),
-                            );
-                            files.insert(file_id, Bytes::new(data));
-                            path_to_id.insert(absolute_path.clone(), file_id);
-                        }
-                    }
+            Self::collect_image_from_block(block, files, path_to_id)?;
+        }
+        Ok(())
+    }
+
+    /// Collect image from a single block (helper to reduce nesting)
+    fn collect_image_from_block(
+        block: &MarkdownBlock,
+        files: &mut HashMap<FileId, Bytes>,
+        path_to_id: &mut HashMap<PathBuf, FileId>,
+    ) -> Result<(), TypstExportError> {
+        match block {
+            MarkdownBlock::Image {
+                absolute_path,
+                exists: true,
+                ..
+            } => {
+                if let Ok(data) = std::fs::read(absolute_path) {
+                    let file_id = FileId::new(None, typst::syntax::VirtualPath::new(absolute_path));
+                    files.insert(file_id, Bytes::new(data));
+                    path_to_id.insert(absolute_path.clone(), file_id);
                 }
-                MarkdownBlock::BlockQuote(inner) => {
-                    Self::collect_image_files(inner, files, path_to_id)?;
-                }
-                MarkdownBlock::List { items, .. } => {
-                    for item in items {
-                        Self::collect_image_files(&item.content, files, path_to_id)?;
-                    }
-                }
-                _ => {}
             }
+            MarkdownBlock::BlockQuote(inner) => {
+                Self::collect_image_files(inner, files, path_to_id)?;
+            }
+            MarkdownBlock::List { items, .. } => {
+                for item in items {
+                    Self::collect_image_files(&item.content, files, path_to_id)?;
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -234,6 +241,30 @@ impl typst::World for SysdocWorld {
     }
 }
 
+/// Format error location from a Typst source diagnostic
+fn format_error_location(error: &typst::diag::SourceDiagnostic, world: &SysdocWorld) -> String {
+    let Some(id) = error.span.id() else {
+        return "unknown".to_string();
+    };
+
+    let Ok(source) = World::source(world, id) else {
+        return id.vpath().as_rootless_path().display().to_string();
+    };
+
+    let Some(range) = source.range(error.span) else {
+        return id.vpath().as_rootless_path().display().to_string();
+    };
+
+    let line = source.byte_to_line(range.start).unwrap_or(0) + 1;
+    let col = source.byte_to_column(range.start).unwrap_or(0) + 1;
+    format!(
+        "{}:{}:{}",
+        id.vpath().as_rootless_path().display(),
+        line,
+        col
+    )
+}
+
 /// Export a unified document to PDF using Typst
 ///
 /// # Parameters
@@ -257,22 +288,7 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), TypstExpo
         let error_msgs: Vec<String> = errors
             .iter()
             .map(|e| {
-                // Try to get position information from the span
-                let location = if let Some(id) = e.span.id() {
-                    if let Ok(source) = World::source(&world, id) {
-                        if let Some(range) = source.range(e.span) {
-                            let line = source.byte_to_line(range.start).unwrap_or(0) + 1;
-                            let col = source.byte_to_column(range.start).unwrap_or(0) + 1;
-                            format!("{}:{}:{}", id.vpath().as_rootless_path().display(), line, col)
-                        } else {
-                            id.vpath().as_rootless_path().display().to_string()
-                        }
-                    } else {
-                        id.vpath().as_rootless_path().display().to_string()
-                    }
-                } else {
-                    "unknown".to_string()
-                };
+                let location = format_error_location(e, &world);
                 format!("{}: {}", location, e.message)
             })
             .collect();
@@ -338,10 +354,12 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
     output.push_str("#pagebreak()\n\n");
 
     // Table of contents
-    output.push_str(r#"#outline(title: "Table of Contents", depth: 3)
+    output.push_str(
+        r#"#outline(title: "Table of Contents", depth: 3)
 #pagebreak()
 
-"#);
+"#,
+    );
 
     // Content sections
     for section in &doc.sections {
@@ -536,10 +554,7 @@ fn generate_block(block: &MarkdownBlock) -> String {
                     absolute_path.display().to_string().replace('\\', "/")
                 );
                 if !alt_text.is_empty() {
-                    output.push_str(&format!(
-                        "  caption: [{}],\n",
-                        escape_typst(alt_text)
-                    ));
+                    output.push_str(&format!("  caption: [{}],\n", escape_typst(alt_text)));
                 }
                 output.push_str(")\n\n");
                 output
@@ -568,7 +583,12 @@ fn generate_list_item(item: &ListItem, prefix: &str) -> String {
                     Some(false) => "[ ] ",
                     None => "",
                 };
-                output.push_str(&format!("{}{}{}\n", prefix, task_marker, runs_to_typst(runs)));
+                output.push_str(&format!(
+                    "{}{}{}\n",
+                    prefix,
+                    task_marker,
+                    runs_to_typst(runs)
+                ));
             } else {
                 output.push_str(prefix);
                 output.push_str(&generate_block(block));
