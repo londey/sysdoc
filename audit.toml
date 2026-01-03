@@ -1,0 +1,14 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+# Ignore unmaintained crate warnings from genpdf dependency chain
+# These are transitive dependencies for PDF generation that we cannot easily replace
+ignore = [
+    "RUSTSEC-2021-0153", # encoding (via lopdf <- genpdf)
+    "RUSTSEC-2020-0144", # lzw (via lopdf <- genpdf)
+    "RUSTSEC-2021-0140", # rusttype (via genpdf)
+    "RUSTSEC-2020-0020", # stb_truetype (via rusttype <- genpdf)
+    "RUSTSEC-2020-0056", # stdweb (via time <- lopdf <- genpdf)
+    "RUSTSEC-2025-0056", # adler (via miniz_oxide <- tiff <- image <- genpdf)
+]

@@ -88,7 +88,6 @@ impl DocumentConfig {
 
 /// Errors that can occur when loading or saving document configuration
 #[derive(Debug)]
-#[allow(clippy::enum_variant_names)]
 pub enum DocumentConfigError {
     /// IO error when reading or writing file
     IoError(std::io::Error),

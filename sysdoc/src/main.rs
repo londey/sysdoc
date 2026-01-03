@@ -12,6 +12,7 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
+#![allow(clippy::enum_variant_names)]
 #![allow(dead_code)]
 
 mod cli;
@@ -37,6 +38,9 @@ mod markdown_exporter;
 
 // HTML exporter
 mod html_exporter;
+
+// PDF exporter (Typst-based)
+mod typst_exporter;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -173,6 +177,7 @@ fn handle_build_command(
                     OutputFormat::Docx => "docx",
                     OutputFormat::Markdown => "md",
                     OutputFormat::Html => "html",
+                    OutputFormat::Pdf => "pdf",
                 };
                 output.set_extension(ext);
             }
@@ -184,9 +189,10 @@ fn handle_build_command(
                 Some("docx") => OutputFormat::Docx,
                 Some("md") | Some("markdown") => OutputFormat::Markdown,
                 Some("html") | Some("htm") => OutputFormat::Html,
+                Some("pdf") => OutputFormat::Pdf,
                 Some(ext) => {
                     anyhow::bail!(
-                        "Unknown output format for extension '.{}'. Supported: .docx, .md, .html\nUse --format to specify explicitly.",
+                        "Unknown output format for extension '.{}'. Supported: .docx, .md, .html, .pdf\nUse --format to specify explicitly.",
                         ext
                     );
                 }
@@ -247,6 +253,7 @@ fn handle_build_command(
             OutputFormat::Docx => "DOCX",
             OutputFormat::Markdown => "Markdown",
             OutputFormat::Html => "HTML",
+            OutputFormat::Pdf => "PDF",
         }
     );
 
@@ -294,6 +301,11 @@ fn handle_build_command(
         OutputFormat::Html => {
             pipeline::export::to_html(&unified_doc, &output)
                 .with_context(|| format!("Failed to export HTML to {}", output.display()))?;
+            println!("✓ Successfully wrote: {}", output.display());
+        }
+        OutputFormat::Pdf => {
+            typst_exporter::to_pdf(&unified_doc, &output)
+                .with_context(|| format!("Failed to export PDF to {}", output.display()))?;
             println!("✓ Successfully wrote: {}", output.display());
         }
     }
@@ -451,6 +463,12 @@ fn print_build_info(
             println!("Format: HTML with embedded images");
             if no_images {
                 println!("Warning: --no-images has no effect in HTML format");
+            }
+        }
+        OutputFormat::Pdf => {
+            println!("Format: PDF with embedded images and table of contents");
+            if no_images {
+                println!("Warning: --no-images has no effect in PDF format");
             }
         }
     }

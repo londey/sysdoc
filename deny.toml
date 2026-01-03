@@ -6,16 +6,25 @@
 version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = []
+# Ignored advisories - transitive dependencies from typst that we cannot fix directly
+ignore = [
+    # paste: unmaintained, used by biblatex -> hayagriva -> typst-library
+    # No security vulnerability, just archived repository
+    "RUSTSEC-2024-0436",
+    # yaml-rust: unmaintained, used by syntect -> two-face -> typst-library
+    # No security vulnerability, maintainer unreachable
+    "RUSTSEC-2024-0320",
+]
 
 [licenses]
 # Only allow permissive open source licenses
 version = 2
 confidence-threshold = 0.8
 
-# Accept only permissive licenses and their combinations (dual-licensing)
-# Currently used licenses are MIT, Apache-2.0, and Unicode-3.0
-# Additional permissive licenses are pre-approved for future dependencies
+# Accept permissive licenses and file-level copyleft (MPL-2.0)
+# MPL-2.0 is a "weak copyleft" that only requires modifications to MPL-licensed
+# files themselves be released under MPL - it does not affect your own code.
+# Used by typst dependencies: resvg, usvg, option-ext
 allow = [
     "MIT",
     "Apache-2.0",
@@ -27,6 +36,7 @@ allow = [
     "Unicode-3.0",
     "Zlib",
     "CC0-1.0",
+    "MPL-2.0",
 ]
 
 # Don't warn about unused licenses in the allow list
