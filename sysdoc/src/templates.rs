@@ -85,6 +85,13 @@ pub fn get_all_templates() -> Vec<TemplateInfo> {
             content: include_str!("templates/str-standard-v1.toml"),
             binary_files: vec![("template.docx", TEMPLATE_DOCX)],
         },
+        TemplateInfo {
+            id: "idd-standard-v1".to_string(),
+            doc_type: "IDD".to_string(),
+            spec: "DI-IPSC-81436A".to_string(),
+            content: include_str!("templates/idd-standard-v1.toml"),
+            binary_files: vec![("template.docx", TEMPLATE_DOCX)],
+        },
     ]
 }
 
@@ -134,7 +141,7 @@ mod tests {
     #[test]
     fn test_all_templates_load() {
         let templates = get_all_templates();
-        assert_eq!(templates.len(), 8);
+        assert_eq!(templates.len(), 9);
     }
 
     #[test]
@@ -147,6 +154,7 @@ mod tests {
         assert!(get_template("stp-standard-v1").is_some());
         assert!(get_template("std-standard-v1").is_some());
         assert!(get_template("str-standard-v1").is_some());
+        assert!(get_template("idd-standard-v1").is_some());
     }
 
     #[test]
@@ -165,6 +173,8 @@ mod tests {
         assert!(get_template("std").is_some());
         assert!(get_template("STR").is_some());
         assert!(get_template("str").is_some());
+        assert!(get_template("IDD").is_some());
+        assert!(get_template("idd").is_some());
     }
 
     #[test]
@@ -177,6 +187,7 @@ mod tests {
         assert!(get_template("DI-IPSC-81438").is_some());
         assert!(get_template("DI-IPSC-81439").is_some());
         assert!(get_template("DI-IPSC-81440").is_some());
+        assert!(get_template("DI-IPSC-81436A").is_some());
     }
 
     #[test]
