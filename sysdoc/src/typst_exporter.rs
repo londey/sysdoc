@@ -305,25 +305,76 @@ pub fn to_pdf(doc: &UnifiedDocument, output_path: &Path) -> Result<(), TypstExpo
     Ok(())
 }
 
-/// Generate Typst markup from a UnifiedDocument
-fn generate_typst_markup(doc: &UnifiedDocument) -> String {
-    let mut output = String::new();
+/// Generate Typst preamble with header/footer definitions
+///
+/// If protection_mark is set, it appears centered in red on all pages.
+fn generate_preamble(doc: &UnifiedDocument) -> String {
+    let document_id = escape_typst(&doc.metadata.document_id);
+    let version = doc.metadata.version.as_deref().unwrap_or("Draft");
 
-    // Document setup
-    // Note: Inside context {{ }}, we're in code mode, so use [...] for content blocks
-    output.push_str(&format!(
-        r#"#set document(title: "{}", author: "{}")
+    let mut preamble = String::new();
+
+    // Document metadata
+    preamble.push_str(&format!(
+        "#set document(title: \"{}\", author: \"{}\")\n",
+        escape_typst(&doc.metadata.title),
+        escape_typst(&doc.metadata.owner.name),
+    ));
+
+    if let Some(ref mark) = doc.metadata.protection_mark {
+        let escaped_mark = escape_typst(mark);
+
+        // Define protection mark variable and custom header/footer functions
+        preamble.push_str(&format!(
+            r#"#let protection-mark = "{}"
+#let doc-id = "{}"
+#let doc-version = "{}"
+
+#let make-header() = {{
+  align(center)[#text(size: 12pt, fill: red, weight: "bold")[#protection-mark]]
+  if counter(page).get().first() > 1 {{
+    v(-1em)
+    text(size: 10pt)[#doc-id]
+    h(1fr)
+    text(size: 10pt)[#doc-version]
+  }}
+}}
+
+#let make-footer() = {{
+  h(1fr)
+  text(size: 12pt, fill: red, weight: "bold")[#protection-mark]
+  h(1fr)
+  text(size: 10pt)[Page #counter(page).display() of #counter(page).final().first()]
+}}
+
+#set page(paper: "a4", margin: 2cm, header: context {{ make-header() }}, footer: context {{ make-footer() }})
+"#,
+            escaped_mark, document_id, version
+        ));
+    } else {
+        // No protection mark - simpler header/footer
+        preamble.push_str(&format!(
+            r#"#let doc-id = "{}"
+#let doc-version = "{}"
+
 #set page(paper: "a4", margin: 2cm, header: context {{
-  if counter(page).get().first() > 1 [
-    #text(size: 10pt)[{}]
-    #h(1fr)
-    #text(size: 10pt)[{}]
-  ]
-}}, footer: context [
-  #h(1fr)
-  #text(size: 10pt)[Page #counter(page).display() of #counter(page).final().first()]
-])
-#set text(font: "Liberation Sans", size: 11pt)
+  if counter(page).get().first() > 1 {{
+    text(size: 10pt)[#doc-id]
+    h(1fr)
+    text(size: 10pt)[#doc-version]
+  }}
+}}, footer: context {{
+  h(1fr)
+  text(size: 10pt)[Page #counter(page).display() of #counter(page).final().first()]
+}})
+"#,
+            document_id, version
+        ));
+    }
+
+    // Common styling
+    preamble.push_str(
+        r#"#set text(font: "Liberation Sans", size: 11pt)
 #set heading(numbering: none)
 
 // Code styling: monospace font for all code
@@ -341,11 +392,17 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
 #show heading: it => block(above: 1.4em, below: 0.6em, sticky: true)[#it]
 
 "#,
-        escape_typst(&doc.metadata.title),
-        escape_typst(&doc.metadata.owner.name),
-        escape_typst(&doc.metadata.document_id),
-        doc.metadata.version.as_deref().unwrap_or("Draft"),
-    ));
+    );
+
+    preamble
+}
+
+/// Generate Typst markup from a UnifiedDocument
+fn generate_typst_markup(doc: &UnifiedDocument) -> String {
+    let mut output = String::new();
+
+    // Generate preamble with document setup and header/footer
+    output.push_str(&generate_preamble(doc));
 
     // Title page
     output.push_str(&generate_title_page(doc));
