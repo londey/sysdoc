@@ -39,6 +39,10 @@ pub struct DocumentConfig {
 
     /// Path to the .docx file to use as template for generated docx files
     pub docx_template_path: Option<String>,
+
+    /// Optional protection/classification marking for document headers and footers
+    /// (e.g., "PC-PROTECTED//DESIGN", "CONFIDENTIAL", etc.)
+    pub protection_mark: Option<String>,
 }
 
 /// Person information (owner, approver, etc.)
@@ -137,6 +141,7 @@ mod tests {
             document_standard: "DI-IPSC-81435B".to_string(),
             document_template: "sdd-standard-v1".to_string(),
             docx_template_path: Some("templates/standard.docx".to_string()),
+            protection_mark: Some("PC-PROTECTED//DESIGN".to_string()),
         };
 
         // Serialize to TOML

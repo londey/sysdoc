@@ -105,6 +105,8 @@ pub struct DocumentMetadata {
     pub created: Option<String>,
     /// Last modified date
     pub modified: Option<String>,
+    /// Optional protection/classification marking (e.g., "PC-PROTECTED//DESIGN")
+    pub protection_mark: Option<String>,
 }
 
 /// Person information
@@ -196,6 +198,7 @@ mod tests {
             version: None,
             created: None,
             modified: None,
+            protection_mark: None,
         }
     }
 

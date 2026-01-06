@@ -46,6 +46,14 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
     output.push_str("<body>\n");
     output.push_str("<div class=\"container\">\n");
 
+    // Write protection mark at top if present
+    if let Some(ref mark) = doc.metadata.protection_mark {
+        output.push_str(&format!(
+            "<div class=\"protection-mark\">{}</div>\n",
+            escape_html(mark)
+        ));
+    }
+
     // Write document title as H1 if available
     if !doc.metadata.title.is_empty() {
         output.push_str(&format!(
@@ -60,6 +68,14 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
     // Write each section
     for section in &doc.sections {
         write_section(&mut output, section)?;
+    }
+
+    // Write protection mark at bottom if present
+    if let Some(ref mark) = doc.metadata.protection_mark {
+        output.push_str(&format!(
+            "<div class=\"protection-mark\">{}</div>\n",
+            escape_html(mark)
+        ));
     }
 
     // Close container and body
@@ -610,6 +626,20 @@ body {
     border-radius: 4px;
 }
 
+.protection-mark {
+    text-align: center;
+    color: #cc0000;
+    font-size: 1.2em;
+    font-weight: 600;
+    padding: 12px 0;
+    margin-bottom: 16px;
+}
+
+.protection-mark:last-of-type {
+    margin-bottom: 0;
+    margin-top: 32px;
+}
+
 .document-title {
     font-size: 2.5em;
     font-weight: 700;
@@ -865,6 +895,12 @@ a:hover {
     .container {
         box-shadow: none;
         padding: 0;
+    }
+
+    .protection-mark {
+        color: #cc0000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .section-heading {

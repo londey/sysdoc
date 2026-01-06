@@ -304,6 +304,7 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
         version,
         created,
         modified,
+        protection_mark: source.config.protection_mark.clone(),
     };
 
     let mut builder = DocumentBuilder::new(metadata, source.root.clone());
