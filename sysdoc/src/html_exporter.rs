@@ -6,7 +6,7 @@
 //! - Modern CSS styling with sans-serif fonts
 
 use crate::source_model::{Alignment, ListItem, MarkdownBlock, MarkdownSection, TextRun};
-use crate::unified_document::UnifiedDocument;
+use crate::unified_document::{format_display_date, UnifiedDocument};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs;
 use std::io::Write;
@@ -211,14 +211,14 @@ fn write_metadata(output: &mut String, doc: &UnifiedDocument) {
     if let Some(ref created) = doc.metadata.created {
         output.push_str(&format!(
             "<tr><td class=\"label\">Created:</td><td>{}</td></tr>\n",
-            escape_html(created)
+            escape_html(&format_display_date(created))
         ));
     }
 
     if let Some(ref modified) = doc.metadata.modified {
         output.push_str(&format!(
             "<tr><td class=\"label\">Modified:</td><td>{}</td></tr>\n",
-            escape_html(modified)
+            escape_html(&format_display_date(modified))
         ));
     }
 

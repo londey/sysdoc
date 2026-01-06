@@ -4,7 +4,7 @@
 //! It provides better typography and native SVG support compared to genpdf.
 
 use crate::source_model::{ListItem, MarkdownBlock, MarkdownSection, TextRun};
-use crate::unified_document::UnifiedDocument;
+use crate::unified_document::{format_display_date, UnifiedDocument};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -530,11 +530,17 @@ fn generate_title_page(doc: &UnifiedDocument) -> String {
     }
 
     if let Some(created) = &doc.metadata.created {
-        output.push_str(&format!("*Created:* {}\n\n", escape_typst(created)));
+        output.push_str(&format!(
+            "*Created:* {}\n\n",
+            escape_typst(&format_display_date(created))
+        ));
     }
 
     if let Some(modified) = &doc.metadata.modified {
-        output.push_str(&format!("*Last Modified:* {}\n\n", escape_typst(modified)));
+        output.push_str(&format!(
+            "*Last Modified:* {}\n\n",
+            escape_typst(&format_display_date(modified))
+        ));
     }
 
     if let Some(description) = &doc.metadata.description {

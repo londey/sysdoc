@@ -118,6 +118,39 @@ pub struct Person {
     pub email: String,
 }
 
+/// Format an ISO 8601 date string to display format (e.g., "6 Jul 2026")
+///
+/// # Parameters
+/// * `iso_date` - ISO 8601 date string (e.g., "2026-07-06T12:34:56+00:00")
+///
+/// # Returns
+/// * Formatted date string in "d Mon YYYY" format, or the original string if parsing fails
+pub fn format_display_date(iso_date: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    // ISO 8601 format: YYYY-MM-DDTHH:MM:SS...
+    // We only need the date part before 'T'
+    let date_part = iso_date.split('T').next().unwrap_or(iso_date);
+    let parts: Vec<&str> = date_part.split('-').collect();
+
+    if parts.len() >= 3 {
+        if let (Ok(year), Ok(month), Ok(day)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<usize>(),
+            parts[2].parse::<u32>(),
+        ) {
+            if (1..=12).contains(&month) {
+                return format!("{} {} {}", day, MONTHS[month - 1], year);
+            }
+        }
+    }
+
+    // Return original if parsing fails
+    iso_date.to_string()
+}
+
 /// Builder for constructing a UnifiedDocument from source models
 pub struct DocumentBuilder {
     metadata: DocumentMetadata,
@@ -229,5 +262,37 @@ mod tests {
     fn test_table_count() {
         let doc = UnifiedDocument::new(test_metadata(), PathBuf::from("."));
         assert_eq!(doc.table_count(), 0);
+    }
+
+    #[test]
+    fn test_format_display_date_iso8601() {
+        // Standard ISO 8601 format from git
+        assert_eq!(
+            format_display_date("2026-07-06T12:34:56+00:00"),
+            "6 Jul 2026"
+        );
+        assert_eq!(
+            format_display_date("2024-01-15T09:00:00+10:00"),
+            "15 Jan 2024"
+        );
+        assert_eq!(
+            format_display_date("2025-12-31T23:59:59-05:00"),
+            "31 Dec 2025"
+        );
+    }
+
+    #[test]
+    fn test_format_display_date_date_only() {
+        // Date only without time component
+        assert_eq!(format_display_date("2026-07-06"), "6 Jul 2026");
+        assert_eq!(format_display_date("2024-02-29"), "29 Feb 2024");
+    }
+
+    #[test]
+    fn test_format_display_date_invalid_returns_original() {
+        // Invalid formats should return original string
+        assert_eq!(format_display_date("not a date"), "not a date");
+        assert_eq!(format_display_date("2024-13-01"), "2024-13-01"); // Invalid month
+        assert_eq!(format_display_date(""), "");
     }
 }
