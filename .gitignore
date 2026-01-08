@@ -31,6 +31,7 @@ desktop.ini
 *.pdf
 *.html
 **/output.docx
+**/output.md
 examples/**/output/
 nul
 target/test-output/
