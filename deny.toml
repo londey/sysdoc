@@ -14,6 +14,9 @@ ignore = [
     # yaml-rust: unmaintained, used by syntect -> two-face -> typst-library
     # No security vulnerability, maintainer unreachable
     "RUSTSEC-2024-0320",
+    # bincode: unmaintained, used by syntect -> typst-library
+    # No security vulnerability, upstream tracking at https://github.com/trishume/syntect/issues/606
+    "RUSTSEC-2025-0141",
 ]
 
 [licenses]
