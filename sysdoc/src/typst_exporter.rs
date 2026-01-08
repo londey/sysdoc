@@ -805,10 +805,16 @@ mod tests {
     fn test_escape_typst_string() {
         assert_eq!(escape_typst_string("hello"), "hello");
         assert_eq!(escape_typst_string("DI-IPSC-81435B"), "DI-IPSC-81435B");
-        assert_eq!(escape_typst_string("test_with_underscores"), "test_with_underscores");
+        assert_eq!(
+            escape_typst_string("test_with_underscores"),
+            "test_with_underscores"
+        );
         assert_eq!(escape_typst_string("quote\"test"), "quote\\\"test");
         assert_eq!(escape_typst_string("back\\slash"), "back\\\\slash");
-        assert_eq!(escape_typst_string("special*chars#are@not[escaped]"), "special*chars#are@not[escaped]");
+        assert_eq!(
+            escape_typst_string("special*chars#are@not[escaped]"),
+            "special*chars#are@not[escaped]"
+        );
     }
 
     #[test]
