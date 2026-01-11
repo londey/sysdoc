@@ -387,6 +387,17 @@ fn generate_block_xml(block: &MarkdownBlock, images: &HashMap<PathBuf, ImageData
         MarkdownBlock::Rule => {
             r#"<w:p><w:r><w:t>────────────────────────────────────────────────────</w:t></w:r></w:p>"#.to_string()
         }
+        MarkdownBlock::Html(_) => {
+            // HTML blocks (typically comments) are ignored in DOCX output
+            String::new()
+        }
+        MarkdownBlock::IncludedCodeBlock { content: Some(content), .. } => {
+            generate_code_block_xml(content)
+        }
+        MarkdownBlock::IncludedCodeBlock { path, .. } => generate_paragraph_xml(&[TextRun::new(format!(
+            "[File not found: {}]",
+            path.display()
+        ))]),
         _ => generate_paragraph_xml(&[TextRun::new(format!(
             "[{:?} not implemented]",
             block_type_name(block)
