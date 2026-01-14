@@ -1,9 +1,7 @@
 //! Linux sandbox implementation using landlock and seccomp
 
 use super::error::{SandboxError, SandboxStatus};
-use landlock::{
-    Access, AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus, ABI,
-};
+use landlock::{Access, AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus, ABI};
 use seccompiler::{BpfProgram, SeccompAction, SeccompFilter, SeccompRule};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -74,15 +72,13 @@ fn setup_landlock(allowed_paths: &[PathBuf]) -> Result<(), SandboxError> {
     // Add rules for each allowed path
     for path in allowed_paths {
         // Canonicalize the path to ensure it's absolute and resolved
-        let canonical_path = path
-            .canonicalize()
-            .map_err(|e| {
-                SandboxError::LandlockError(format!(
-                    "Failed to canonicalize path {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
+        let canonical_path = path.canonicalize().map_err(|e| {
+            SandboxError::LandlockError(format!(
+                "Failed to canonicalize path {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
 
         // Open the directory to get a file descriptor
         let dir_fd = std::fs::File::open(&canonical_path).map_err(|e| {
@@ -94,10 +90,7 @@ fn setup_landlock(allowed_paths: &[PathBuf]) -> Result<(), SandboxError> {
         })?;
 
         ruleset = ruleset
-            .add_rule(landlock::PathBeneath::new(
-                dir_fd,
-                AccessFs::from_all(abi),
-            ))
+            .add_rule(landlock::PathBeneath::new(dir_fd, AccessFs::from_all(abi)))
             .map_err(|e| {
                 SandboxError::LandlockError(format!("Failed to add rule for path: {}", e))
             })?;
@@ -106,9 +99,8 @@ fn setup_landlock(allowed_paths: &[PathBuf]) -> Result<(), SandboxError> {
     }
 
     // Always allow /tmp for temporary files
-    let tmp_fd = std::fs::File::open("/tmp").map_err(|e| {
-        SandboxError::LandlockError(format!("Failed to open /tmp: {}", e))
-    })?;
+    let tmp_fd = std::fs::File::open("/tmp")
+        .map_err(|e| SandboxError::LandlockError(format!("Failed to open /tmp: {}", e)))?;
     ruleset = ruleset
         .add_rule(landlock::PathBeneath::new(tmp_fd, AccessFs::from_all(abi)))
         .map_err(|e| SandboxError::LandlockError(format!("Failed to add /tmp rule: {}", e)))?;
@@ -176,7 +168,7 @@ fn setup_seccomp() -> Result<(), SandboxError> {
     // Create the seccomp filter
     let filter = SeccompFilter::new(
         filter_map,
-        SeccompAction::Allow, // Default action is to allow
+        SeccompAction::Allow,                     // Default action is to allow
         SeccompAction::Errno(libc::EPERM as u32), // Block with EPERM
         std::env::consts::ARCH.try_into().map_err(|e| {
             SandboxError::SeccompError(format!("Unsupported architecture: {:?}", e))
