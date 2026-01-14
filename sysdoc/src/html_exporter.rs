@@ -64,7 +64,8 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
 
         if absolute_path.exists() {
             if let Ok(data) = fs::read(&absolute_path) {
-                let ext = absolute_path.extension()
+                let ext = absolute_path
+                    .extension()
                     .and_then(|e| e.to_str())
                     .unwrap_or("")
                     .to_lowercase();

@@ -141,6 +141,26 @@ impl SysdocWorld {
         let mut files = HashMap::new();
         let mut path_to_id = HashMap::new();
 
+        // Load title page background image if specified
+        if let Some(bg_path) = &doc.metadata.title_page_background {
+            let absolute_path = if Path::new(bg_path).is_absolute() {
+                PathBuf::from(bg_path)
+            } else {
+                doc.root.join(bg_path)
+            };
+
+            if absolute_path.exists() {
+                if let Ok(data) = std::fs::read(&absolute_path) {
+                    // Use forward slashes for VirtualPath to match Typst markup
+                    let normalized_path = absolute_path.display().to_string().replace('\\', "/");
+                    let file_id =
+                        FileId::new(None, typst::syntax::VirtualPath::new(&normalized_path));
+                    files.insert(file_id, Bytes::new(data));
+                    path_to_id.insert(absolute_path, file_id);
+                }
+            }
+        }
+
         // Collect all image paths from the document
         for section in &doc.sections {
             Self::collect_image_files(&section.content, &mut files, &mut path_to_id)?;
@@ -174,7 +194,10 @@ impl SysdocWorld {
                 ..
             } => {
                 if let Ok(data) = std::fs::read(absolute_path) {
-                    let file_id = FileId::new(None, typst::syntax::VirtualPath::new(absolute_path));
+                    // Use forward slashes for VirtualPath to match Typst markup
+                    let normalized_path = absolute_path.display().to_string().replace('\\', "/");
+                    let file_id =
+                        FileId::new(None, typst::syntax::VirtualPath::new(&normalized_path));
                     files.insert(file_id, Bytes::new(data));
                     path_to_id.insert(absolute_path.clone(), file_id);
                 }
