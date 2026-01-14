@@ -429,6 +429,7 @@ mod tests {
             docx_template_path: None,
             protection_mark: None,
             title_page_background: None,
+            revision_tag_pattern: r"^v[1-9]\d*\.\d+\.\d+$".to_string(),
         }
     }
 

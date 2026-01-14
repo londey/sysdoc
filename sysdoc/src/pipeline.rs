@@ -7,8 +7,11 @@
 
 use crate::document_config::DocumentConfig;
 use crate::source_model::{MarkdownSection, MarkdownSource, SectionNumber, SourceModel};
-use crate::unified_document::{DocumentBuilder, DocumentMetadata, Person, UnifiedDocument};
+use crate::unified_document::{
+    DocumentBuilder, DocumentMetadata, Person, RevisionHistoryEntry, UnifiedDocument,
+};
 use itertools::Itertools;
+use regex::Regex;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -172,12 +175,16 @@ fn parse_filename<'a>(filename: &'a str, path: &Path) -> Result<(&'a str, String
 
 /// Get the git version using `git describe --tags --dirty`
 ///
+/// # Parameters
+/// * `root` - Root directory of the document (git repository)
+///
 /// # Returns
 /// * Git version string if successful
 /// * Empty string if git command fails, with a warning logged
-fn get_git_version() -> String {
+fn get_git_version(root: &Path) -> String {
     match std::process::Command::new("git")
         .args(["describe", "--tags", "--dirty"])
+        .current_dir(root)
         .output()
     {
         Ok(output) if output.status.success() => {
@@ -198,42 +205,103 @@ fn get_git_version() -> String {
     }
 }
 
-/// Get the ISO 8601 datetime of the first git commit
+/// Parse a single tag line from git output into a RevisionHistoryEntry
+///
+/// # Parameters
+/// * `line` - A line in format "tag_name|iso_date|description"
+/// * `re` - Regex to filter matching tags
 ///
 /// # Returns
-/// * ISO 8601 datetime string if successful
-/// * Empty string if git command fails, with a warning logged
-fn get_git_first_commit_date() -> String {
+/// * Some(RevisionHistoryEntry) if line is valid and matches pattern
+/// * None if line is invalid or doesn't match pattern
+fn parse_tag_line(line: &str, re: &Regex) -> Option<RevisionHistoryEntry> {
+    let parts: Vec<&str> = line.splitn(3, '|').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+
+    let version = parts[0].to_string();
+    if !re.is_match(&version) {
+        return None;
+    }
+
+    Some(RevisionHistoryEntry {
+        version,
+        date: parts.get(1).unwrap_or(&"").to_string(),
+        description: parts.get(2).unwrap_or(&"").to_string(),
+    })
+}
+
+/// Get revision history from git tags filtered by pattern
+///
+/// # Parameters
+/// * `root` - Root directory of the document (git repository)
+/// * `pattern` - Regex pattern to filter which tags are included
+///
+/// # Returns
+/// * Vector of RevisionHistoryEntry sorted by date (oldest first)
+/// * May be empty if no matching tags exist or git command fails
+fn get_git_revision_history(root: &Path, pattern: &str) -> Vec<RevisionHistoryEntry> {
+    // Compile regex, falling back to default if invalid
+    let re = match Regex::new(pattern) {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!(
+                "Invalid revision_tag_pattern '{}': {}. Using default.",
+                pattern,
+                e
+            );
+            Regex::new(r"^v[1-9]\d*\.\d+\.\d+$").unwrap()
+        }
+    };
+
+    // Get all tags with dates and messages
+    // Format: tag_name|iso_date|subject_line
     match std::process::Command::new("git")
-        .args(["log", "--reverse", "--format=%aI", "--max-count=1"])
+        .args([
+            "tag",
+            "-l",
+            "--sort=creatordate",
+            "--format=%(refname:short)|%(creatordate:iso-strict)|%(contents:subject)",
+        ])
+        .current_dir(root)
         .output()
     {
         Ok(output) if output.status.success() => {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            stdout
+                .lines()
+                .filter(|line| !line.is_empty())
+                .filter_map(|line| parse_tag_line(line, &re))
+                .collect()
         }
         Ok(output) => {
             log::warn!(
-                "Git log command failed with status {}: {}",
+                "Git tag command failed with status {}: {}",
                 output.status,
                 String::from_utf8_lossy(&output.stderr)
             );
-            String::new()
+            Vec::new()
         }
         Err(e) => {
-            log::warn!("Failed to execute git log for first commit: {}", e);
-            String::new()
+            log::warn!("Failed to execute git tag: {}", e);
+            Vec::new()
         }
     }
 }
 
 /// Get the ISO 8601 datetime of the current HEAD commit
 ///
+/// # Parameters
+/// * `root` - Root directory of the document (git repository)
+///
 /// # Returns
 /// * ISO 8601 datetime string if successful
 /// * Empty string if git command fails, with a warning logged
-fn get_git_head_commit_date() -> String {
+fn get_git_head_commit_date(root: &Path) -> String {
     match std::process::Command::new("git")
         .args(["log", "-1", "--format=%aI", "HEAD"])
+        .current_dir(root)
         .output()
     {
         Ok(output) if output.status.success() => {
@@ -263,26 +331,22 @@ fn get_git_head_commit_date() -> String {
 /// * `Ok(UnifiedDocument)` - Successfully transformed unified document ready for export
 /// * `Err(TransformError)` - Error building document structure
 pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError> {
-    let version_string = get_git_version();
+    let version_string = get_git_version(&source.root);
     let version = if version_string.is_empty() {
         None
     } else {
         Some(version_string)
     };
 
-    let created_string = get_git_first_commit_date();
-    let created = if created_string.is_empty() {
-        None
-    } else {
-        Some(created_string)
-    };
-
-    let modified_string = get_git_head_commit_date();
+    let modified_string = get_git_head_commit_date(&source.root);
     let modified = if modified_string.is_empty() {
         None
     } else {
         Some(modified_string)
     };
+
+    let revision_history =
+        get_git_revision_history(&source.root, &source.config.revision_tag_pattern);
 
     let metadata = DocumentMetadata {
         system_id: source.config.system_id.clone(),
@@ -302,8 +366,8 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
             email: source.config.document_approver.email.clone(),
         },
         version,
-        created,
         modified,
+        revision_history,
         protection_mark: source.config.protection_mark.clone(),
         title_page_background: source.config.title_page_background.clone(),
     };

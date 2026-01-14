@@ -101,10 +101,10 @@ pub struct DocumentMetadata {
     pub approver: Person,
     /// Version number (if any)
     pub version: Option<String>,
-    /// Creation date
-    pub created: Option<String>,
     /// Last modified date
     pub modified: Option<String>,
+    /// Revision history entries extracted from git tags
+    pub revision_history: Vec<RevisionHistoryEntry>,
     /// Optional protection/classification marking (e.g., "PC-PROTECTED//DESIGN")
     pub protection_mark: Option<String>,
     /// Optional path to a background image for the title page (used in PDF and HTML outputs)
@@ -116,6 +116,17 @@ pub struct DocumentMetadata {
 pub struct Person {
     pub name: String,
     pub email: String,
+}
+
+/// A single entry in the revision history table
+#[derive(Debug, Clone)]
+pub struct RevisionHistoryEntry {
+    /// Version identifier (typically the git tag name, e.g., "v1.0.0")
+    pub version: String,
+    /// Date of the revision in ISO 8601 format
+    pub date: String,
+    /// Description of the changes (from tag message or commit subject)
+    pub description: String,
 }
 
 /// Format an ISO 8601 date string to display format (e.g., "6 Jul 2026")
@@ -231,8 +242,8 @@ mod tests {
                 email: "jane@example.com".to_string(),
             },
             version: None,
-            created: None,
             modified: None,
+            revision_history: Vec::new(),
             protection_mark: None,
             title_page_background: None,
         }
