@@ -48,6 +48,15 @@ pub struct DocumentConfig {
     /// The path should be relative to the document root or absolute
     /// Supported formats: PNG, JPEG, SVG
     pub title_page_background: Option<String>,
+
+    /// Regex pattern to filter which git tags appear in revision history
+    /// Default: "^v[1-9]\\d*\\.\\d+\\.\\d+$" (matches v1.0.0+, excludes v0.x.x)
+    #[serde(default = "default_revision_tag_pattern")]
+    pub revision_tag_pattern: String,
+}
+
+fn default_revision_tag_pattern() -> String {
+    r"^v[1-9]\d*\.\d+\.\d+$".to_string()
 }
 
 /// Person information (owner, approver, etc.)
@@ -154,6 +163,7 @@ mod tests {
             docx_template_path: Some("templates/standard.docx".to_string()),
             protection_mark: Some("PC-PROTECTED//DESIGN".to_string()),
             title_page_background: None,
+            revision_tag_pattern: default_revision_tag_pattern(),
         };
 
         // Serialize to TOML

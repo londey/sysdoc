@@ -32,6 +32,7 @@ typst = { workspace = true }
 typst-pdf = { workspace = true }
 typst-kit = { workspace = true }
 comemo = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 pulldown-cmark = { workspace = true, features = ["default"] }

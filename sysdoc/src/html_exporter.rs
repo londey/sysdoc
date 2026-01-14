@@ -6,7 +6,7 @@
 //! - Modern CSS styling with sans-serif fonts
 
 use crate::source_model::{Alignment, ListItem, MarkdownBlock, MarkdownSection, TextRun};
-use crate::unified_document::UnifiedDocument;
+use crate::unified_document::{format_display_date, UnifiedDocument};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs;
 use std::io::Write;
@@ -101,6 +101,9 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
 
     // Write document metadata
     write_metadata(&mut output, doc);
+
+    // Write revision history table (if any tags exist)
+    write_revision_history(&mut output, doc);
 
     // Close title page div
     output.push_str("</div>\n");
@@ -208,21 +211,44 @@ fn write_metadata(output: &mut String, doc: &UnifiedDocument) {
         ));
     }
 
-    if let Some(ref created) = doc.metadata.created {
-        output.push_str(&format!(
-            "<tr><td class=\"label\">Created:</td><td>{}</td></tr>\n",
-            escape_html(created)
-        ));
-    }
-
     if let Some(ref modified) = doc.metadata.modified {
         output.push_str(&format!(
             "<tr><td class=\"label\">Modified:</td><td>{}</td></tr>\n",
-            escape_html(modified)
+            escape_html(&format_display_date(modified))
         ));
     }
 
     output.push_str("</table>\n");
+    output.push_str("</div>\n");
+}
+
+/// Write revision history table if entries exist
+fn write_revision_history(output: &mut String, doc: &UnifiedDocument) {
+    if doc.metadata.revision_history.is_empty() {
+        return;
+    }
+
+    output.push_str("<div class=\"revision-history\">\n");
+    output.push_str("<h2>Revision History</h2>\n");
+    output.push_str("<table>\n<thead>\n<tr>\n");
+    output.push_str("<th>Version</th>\n");
+    output.push_str("<th>Date</th>\n");
+    output.push_str("<th>Description</th>\n");
+    output.push_str("</tr>\n</thead>\n<tbody>\n");
+
+    // Iterate in reverse order (newest first) for display
+    for entry in doc.metadata.revision_history.iter().rev() {
+        output.push_str("<tr>\n");
+        output.push_str(&format!("<td>{}</td>\n", escape_html(&entry.version)));
+        output.push_str(&format!(
+            "<td>{}</td>\n",
+            escape_html(&format_display_date(&entry.date))
+        ));
+        output.push_str(&format!("<td>{}</td>\n", escape_html(&entry.description)));
+        output.push_str("</tr>\n");
+    }
+
+    output.push_str("</tbody>\n</table>\n");
     output.push_str("</div>\n");
 }
 
@@ -698,7 +724,7 @@ body {
 .metadata {
     margin-bottom: 40px;
     padding: 20px;
-    background-color: #f9f9f9;
+    background-color: rgba(255, 255, 255, 0.85);
     border-left: 4px solid #0066cc;
     border-radius: 4px;
 }
@@ -732,6 +758,24 @@ body {
     font-weight: 600;
     color: #555;
     width: 150px;
+}
+
+.revision-history {
+    margin-bottom: 40px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.85);
+    border-left: 4px solid #0066cc;
+    border-radius: 4px;
+}
+
+.revision-history h2 {
+    font-size: 1.3em;
+    margin-bottom: 16px;
+    color: #1a1a1a;
+}
+
+.revision-history table {
+    margin-bottom: 0;
 }
 
 .section-heading {

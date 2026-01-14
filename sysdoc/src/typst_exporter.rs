@@ -4,7 +4,7 @@
 //! It provides better typography and native SVG support compared to genpdf.
 
 use crate::source_model::{ListItem, MarkdownBlock, MarkdownSection, TextRun};
-use crate::unified_document::UnifiedDocument;
+use crate::unified_document::{format_display_date, UnifiedDocument};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -441,6 +441,12 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
     // Title page
     output.push_str(&generate_title_page(doc));
 
+    // Revision history on second page (if any tags exist)
+    if !doc.metadata.revision_history.is_empty() {
+        output.push_str("#pagebreak()\n\n");
+        output.push_str(&generate_revision_history(doc));
+    }
+
     // Page break before TOC
     output.push_str("#pagebreak()\n\n");
 
@@ -457,6 +463,34 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
         output.push_str(&generate_section(section));
     }
 
+    output
+}
+
+/// Generate Typst markup for revision history table
+fn generate_revision_history(doc: &UnifiedDocument) -> String {
+    if doc.metadata.revision_history.is_empty() {
+        return String::new();
+    }
+
+    let mut output = String::new();
+    output.push_str("== Revision History\n\n");
+    output.push_str("#table(\n");
+    output.push_str("  columns: (auto, auto, 1fr),\n");
+    output.push_str("  inset: 8pt,\n");
+    output.push_str("  align: (left, left, left),\n");
+    output.push_str("  [*Version*], [*Date*], [*Description*],\n");
+
+    // Iterate in reverse order (newest first) for display
+    for entry in doc.metadata.revision_history.iter().rev() {
+        output.push_str(&format!(
+            "  [{}], [{}], [{}],\n",
+            escape_typst(&entry.version),
+            escape_typst(&format_display_date(&entry.date)),
+            escape_typst(&entry.description)
+        ));
+    }
+
+    output.push_str(")\n\n");
     output
 }
 
@@ -529,12 +563,11 @@ fn generate_title_page(doc: &UnifiedDocument) -> String {
         output.push_str(&format!("*Version:* {}\n\n", escape_typst(version)));
     }
 
-    if let Some(created) = &doc.metadata.created {
-        output.push_str(&format!("*Created:* {}\n\n", escape_typst(created)));
-    }
-
     if let Some(modified) = &doc.metadata.modified {
-        output.push_str(&format!("*Last Modified:* {}\n\n", escape_typst(modified)));
+        output.push_str(&format!(
+            "*Last Modified:* {}\n\n",
+            escape_typst(&format_display_date(modified))
+        ));
     }
 
     if let Some(description) = &doc.metadata.description {

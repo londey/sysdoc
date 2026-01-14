@@ -31,6 +31,7 @@ typst = "0.13"
 typst-pdf = "0.13"
 typst-kit = "0.13"
 comemo = "0.4"
+regex = "1.11"
 
 # [patch.crates-io]
 # docx-rust = { path = "C:/Development/docx-rs" }

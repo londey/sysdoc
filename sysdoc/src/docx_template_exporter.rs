@@ -944,16 +944,6 @@ fn update_or_create_core_properties(
         escape_xml(&revision)
     ));
 
-    // Add created date if available
-    if let Some(created) = &metadata.created {
-        if let Some(formatted_date) = format_iso8601_for_docprops(created) {
-            xml.push_str(&format!(
-                r#"<dcterms:created xsi:type="dcterms:W3CDTF">{}</dcterms:created>"#,
-                escape_xml(&formatted_date)
-            ));
-        }
-    }
-
     // Add modified date if available
     if let Some(modified) = &metadata.modified {
         if let Some(formatted_date) = format_iso8601_for_docprops(modified) {
