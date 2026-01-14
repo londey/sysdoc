@@ -473,10 +473,14 @@ fn generate_title_page(doc: &UnifiedDocument) -> String {
         };
 
         if absolute_path.exists() {
+            // Place background image edge-to-edge, offsetting by page margins
+            // A4 page is 21cm x 29.7cm, with 2cm margins
             output.push_str("#place(\n");
             output.push_str("  top + left,\n");
+            output.push_str("  dx: -2cm,\n");
+            output.push_str("  dy: -2cm,\n");
             output.push_str(&format!(
-                "  image(\"{}\", width: 100%, height: 100%)\n",
+                "  image(\"{}\", width: 21cm, height: 29.7cm, fit: \"cover\")\n",
                 absolute_path.display().to_string().replace('\\', "/")
             ));
             output.push_str(")\n\n");
