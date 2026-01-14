@@ -438,6 +438,25 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
 fn generate_title_page(doc: &UnifiedDocument) -> String {
     let mut output = String::new();
 
+    // Add background image if specified
+    if let Some(bg_path) = &doc.metadata.title_page_background {
+        let absolute_path = if std::path::Path::new(bg_path).is_absolute() {
+            std::path::PathBuf::from(bg_path)
+        } else {
+            doc.root.join(bg_path)
+        };
+
+        if absolute_path.exists() {
+            output.push_str("#place(\n");
+            output.push_str("  top + left,\n");
+            output.push_str(&format!(
+                "  image(\"{}\", width: 100%, height: 100%)\n",
+                absolute_path.display().to_string().replace('\\', "/")
+            ));
+            output.push_str(")\n\n");
+        }
+    }
+
     output.push_str("#v(4em)\n");
     output.push_str(&format!(
         "#align(center)[#text(size: 24pt, weight: \"bold\")[{}]]\n",

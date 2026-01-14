@@ -428,6 +428,7 @@ mod tests {
             document_template: "test-template".to_string(),
             docx_template_path: None,
             protection_mark: None,
+            title_page_background: None,
         }
     }
 
