@@ -54,6 +54,43 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
         ));
     }
 
+    // Generate title page background style if specified
+    let title_page_style = if let Some(ref bg_path) = doc.metadata.title_page_background {
+        let absolute_path = if std::path::Path::new(bg_path).is_absolute() {
+            std::path::PathBuf::from(bg_path)
+        } else {
+            doc.root.join(bg_path)
+        };
+
+        if absolute_path.exists() {
+            if let Ok(data) = fs::read(&absolute_path) {
+                let ext = absolute_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let mime_type = match ext.as_str() {
+                    "png" => "image/png",
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "svg" => "image/svg+xml",
+                    _ => "application/octet-stream",
+                };
+                let base64_data = STANDARD.encode(&data);
+                let data_url = format!("data:{};base64,{}", mime_type, base64_data);
+                format!(" style=\"background-image: url('{}'); background-size: cover; background-position: center; background-repeat: no-repeat;\"", data_url)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    // Start title page div with optional background
+    output.push_str(&format!("<div class=\"title-page\"{}>\n", title_page_style));
+
     // Write document title as H1 if available
     if !doc.metadata.title.is_empty() {
         output.push_str(&format!(
@@ -64,6 +101,9 @@ pub fn to_html(doc: &UnifiedDocument, output_path: &Path) -> Result<(), HtmlExpo
 
     // Write document metadata
     write_metadata(&mut output, doc);
+
+    // Close title page div
+    output.push_str("</div>\n");
 
     // Write each section
     for section in &doc.sections {
@@ -638,6 +678,12 @@ body {
 .protection-mark:last-of-type {
     margin-bottom: 0;
     margin-top: 32px;
+}
+
+.title-page {
+    padding: 40px 20px;
+    margin-bottom: 40px;
+    border-radius: 4px;
 }
 
 .document-title {

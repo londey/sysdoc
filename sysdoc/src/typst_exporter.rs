@@ -141,12 +141,42 @@ impl SysdocWorld {
         let mut files = HashMap::new();
         let mut path_to_id = HashMap::new();
 
+        // Load title page background image if specified
+        if let Some(bg_path) = &doc.metadata.title_page_background {
+            let absolute_path = if Path::new(bg_path).is_absolute() {
+                PathBuf::from(bg_path)
+            } else {
+                doc.root.join(bg_path)
+            };
+
+            Self::load_image_file(&absolute_path, &mut files, &mut path_to_id);
+        }
+
         // Collect all image paths from the document
         for section in &doc.sections {
             Self::collect_image_files(&section.content, &mut files, &mut path_to_id)?;
         }
 
         Ok((files, path_to_id))
+    }
+
+    /// Load a single image file into the cache
+    fn load_image_file(
+        absolute_path: &Path,
+        files: &mut HashMap<FileId, Bytes>,
+        path_to_id: &mut HashMap<PathBuf, FileId>,
+    ) {
+        if !absolute_path.exists() {
+            return;
+        }
+        let Ok(data) = std::fs::read(absolute_path) else {
+            return;
+        };
+        // Use forward slashes for VirtualPath to match Typst markup
+        let normalized_path = absolute_path.display().to_string().replace('\\', "/");
+        let file_id = FileId::new(None, typst::syntax::VirtualPath::new(&normalized_path));
+        files.insert(file_id, Bytes::new(data));
+        path_to_id.insert(absolute_path.to_path_buf(), file_id);
     }
 
     /// Recursively collect image files from blocks
@@ -173,11 +203,7 @@ impl SysdocWorld {
                 exists: true,
                 ..
             } => {
-                if let Ok(data) = std::fs::read(absolute_path) {
-                    let file_id = FileId::new(None, typst::syntax::VirtualPath::new(absolute_path));
-                    files.insert(file_id, Bytes::new(data));
-                    path_to_id.insert(absolute_path.clone(), file_id);
-                }
+                Self::load_image_file(absolute_path, files, path_to_id);
             }
             MarkdownBlock::BlockQuote(inner) => {
                 Self::collect_image_files(inner, files, path_to_id)?;
@@ -437,6 +463,29 @@ fn generate_typst_markup(doc: &UnifiedDocument) -> String {
 /// Generate Typst markup for the title page
 fn generate_title_page(doc: &UnifiedDocument) -> String {
     let mut output = String::new();
+
+    // Add background image if specified
+    if let Some(bg_path) = &doc.metadata.title_page_background {
+        let absolute_path = if std::path::Path::new(bg_path).is_absolute() {
+            std::path::PathBuf::from(bg_path)
+        } else {
+            doc.root.join(bg_path)
+        };
+
+        if absolute_path.exists() {
+            // Place background image edge-to-edge, offsetting by page margins
+            // A4 page is 21cm x 29.7cm, with 2cm margins
+            output.push_str("#place(\n");
+            output.push_str("  top + left,\n");
+            output.push_str("  dx: -2cm,\n");
+            output.push_str("  dy: -2cm,\n");
+            output.push_str(&format!(
+                "  image(\"{}\", width: 21cm, height: 29.7cm, fit: \"cover\")\n",
+                absolute_path.display().to_string().replace('\\', "/")
+            ));
+            output.push_str(")\n\n");
+        }
+    }
 
     output.push_str("#v(4em)\n");
     output.push_str(&format!(

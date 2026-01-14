@@ -168,6 +168,11 @@ fn handle_build_command(
     no_images: bool,
     engine: DocxEngine,
 ) -> Result<()> {
+    // Canonicalize input path to get absolute path with drive letter on Windows
+    let input = input
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve input path: {}", input.display()))?;
+
     // Auto-detect format from output file extension if not explicitly specified
     let format = match format_arg {
         Some(fmt) => {

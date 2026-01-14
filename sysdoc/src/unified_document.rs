@@ -107,6 +107,8 @@ pub struct DocumentMetadata {
     pub modified: Option<String>,
     /// Optional protection/classification marking (e.g., "PC-PROTECTED//DESIGN")
     pub protection_mark: Option<String>,
+    /// Optional path to a background image for the title page (used in PDF and HTML outputs)
+    pub title_page_background: Option<String>,
 }
 
 /// Person information
@@ -199,6 +201,7 @@ mod tests {
             created: None,
             modified: None,
             protection_mark: None,
+            title_page_background: None,
         }
     }
 

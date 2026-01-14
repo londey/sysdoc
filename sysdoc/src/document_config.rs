@@ -43,6 +43,11 @@ pub struct DocumentConfig {
     /// Optional protection/classification marking for document headers and footers
     /// (e.g., "PC-PROTECTED//DESIGN", "CONFIDENTIAL", etc.)
     pub protection_mark: Option<String>,
+
+    /// Optional path to a background image for the title page (used in PDF and HTML outputs)
+    /// The path should be relative to the document root or absolute
+    /// Supported formats: PNG, JPEG, SVG
+    pub title_page_background: Option<String>,
 }
 
 /// Person information (owner, approver, etc.)
@@ -148,6 +153,7 @@ mod tests {
             document_template: "sdd-standard-v1".to_string(),
             docx_template_path: Some("templates/standard.docx".to_string()),
             protection_mark: Some("PC-PROTECTED//DESIGN".to_string()),
+            title_page_background: None,
         };
 
         // Serialize to TOML
