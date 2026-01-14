@@ -239,18 +239,12 @@ fn write_revision_history(output: &mut String, doc: &UnifiedDocument) {
     // Iterate in reverse order (newest first) for display
     for entry in doc.metadata.revision_history.iter().rev() {
         output.push_str("<tr>\n");
-        output.push_str(&format!(
-            "<td>{}</td>\n",
-            escape_html(&entry.version)
-        ));
+        output.push_str(&format!("<td>{}</td>\n", escape_html(&entry.version)));
         output.push_str(&format!(
             "<td>{}</td>\n",
             escape_html(&format_display_date(&entry.date))
         ));
-        output.push_str(&format!(
-            "<td>{}</td>\n",
-            escape_html(&entry.description)
-        ));
+        output.push_str(&format!("<td>{}</td>\n", escape_html(&entry.description)));
         output.push_str("</tr>\n");
     }
 

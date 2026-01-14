@@ -104,7 +104,10 @@ fn write_metadata(output: &mut String, doc: &UnifiedDocument) {
     }
 
     if let Some(ref modified) = doc.metadata.modified {
-        output.push_str(&format!("| Last Modified | {} |\n", format_display_date(modified)));
+        output.push_str(&format!(
+            "| Last Modified | {} |\n",
+            format_display_date(modified)
+        ));
     }
 
     output.push_str(&format!(
