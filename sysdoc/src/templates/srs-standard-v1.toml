@@ -26,6 +26,11 @@ email = "your.email@example.com"
 [document_approver]
 name = "Approver Name"
 email = "approver@example.com"
+
+# Optional path to a background image for the title page (used in PDF and HTML outputs)
+# The path should be relative to the document root or absolute
+# Supported formats: PNG, JPEG, SVG
+# title_page_background = "images/title-background.png"
 """
 
 # README.md
