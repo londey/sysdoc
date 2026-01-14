@@ -6,7 +6,14 @@ sysdoc implements defense-in-depth security to ensure it only accesses files and
 
 ## Linux Sandboxing
 
-On Linux 5.13+, sysdoc uses kernel-level sandboxing with two complementary mechanisms:
+On Linux 5.13+, sysdoc uses kernel-level sandboxing with two complementary mechanisms.
+
+**Important:** Git metadata (version, revision history) is collected **before** sandbox initialization, since the sandbox blocks process execution. The build process order is:
+
+1. Parse source files (read markdown, config)
+2. Collect git metadata (execute git commands)
+3. **Enter sandbox** (blocks network, exec, limits filesystem)
+4. Transform and export (uses pre-collected git metadata)
 
 ### Landlock (Filesystem Restriction)
 
