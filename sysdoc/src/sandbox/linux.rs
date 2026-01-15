@@ -147,14 +147,14 @@ fn setup_seccomp() -> Result<(), SandboxError> {
     ];
 
     for syscall in &network_syscalls {
-        filter_map.insert(*syscall as i64, vec![]);
+        filter_map.insert(*syscall, vec![]);
     }
 
     // Block exec syscalls
     let exec_syscalls = [libc::SYS_execve, libc::SYS_execveat];
 
     for syscall in &exec_syscalls {
-        filter_map.insert(*syscall as i64, vec![]);
+        filter_map.insert(*syscall, vec![]);
     }
 
     // Block fork/vfork (but not clone, as threads need it)
@@ -162,7 +162,7 @@ fn setup_seccomp() -> Result<(), SandboxError> {
     let fork_syscalls = [libc::SYS_fork, libc::SYS_vfork];
 
     for syscall in &fork_syscalls {
-        filter_map.insert(*syscall as i64, vec![]);
+        filter_map.insert(*syscall, vec![]);
     }
 
     // Create the seccomp filter
