@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 COPY Cargo.toml Cargo.lock ./
 COPY sysdoc/Cargo.toml ./sysdoc/
 
+# Copy external dependencies (fonts, etc.) needed at build time
+COPY external ./external
+
 # Create dummy main to build dependencies
 RUN mkdir -p sysdoc/src && echo "fn main() {}" > sysdoc/src/main.rs
 RUN cargo build --release
