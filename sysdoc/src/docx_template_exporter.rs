@@ -20,7 +20,9 @@
 //! - Theme colors and fonts
 //! - Document properties
 
+use crate::source_model::ImageFormat;
 use crate::source_model::{Alignment, ListItem, MarkdownBlock, MarkdownSection, TextRun};
+use crate::svg_converter;
 use crate::unified_document::{DocumentMetadata, UnifiedDocument};
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -231,18 +233,38 @@ pub fn to_docx(
 }
 
 /// Try to load image data from a path
+///
+/// SVG images are converted to PNG for Word 2016+ compatibility.
 fn try_load_image(absolute_path: &Path, rel_id: usize) -> Option<ImageData> {
     let bytes = std::fs::read(absolute_path).ok()?;
-    let extension = absolute_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png")
-        .to_lowercase();
+    let format = ImageFormat::from_path(absolute_path);
 
-    let (width_emu, height_emu) = calculate_image_dimensions(&bytes);
+    // Convert SVG to PNG for DOCX compatibility
+    let (final_bytes, extension): (Vec<u8>, String) = if format.needs_png_conversion_for_docx() {
+        match svg_converter::svg_to_png(&bytes, None) {
+            Ok(result) => (result.png_bytes, "png".to_string()),
+            Err(e) => {
+                log::warn!(
+                    "Failed to convert SVG to PNG for {}: {}. Image will be skipped.",
+                    absolute_path.display(),
+                    e
+                );
+                return None;
+            }
+        }
+    } else {
+        let ext = absolute_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_lowercase();
+        (bytes, ext)
+    };
+
+    let (width_emu, height_emu) = calculate_image_dimensions(&final_bytes);
 
     Some(ImageData {
-        bytes,
+        bytes: final_bytes,
         extension,
         rel_id: format!("rId{}", rel_id),
         width_emu,

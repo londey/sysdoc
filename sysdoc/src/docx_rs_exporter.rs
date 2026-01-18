@@ -4,7 +4,9 @@
 //! using the `docx-rs` crate. Unlike docx-rust, this creates documents from scratch
 //! without requiring a template file.
 
+use crate::source_model::ImageFormat;
 use crate::source_model::{Alignment, MarkdownBlock, MarkdownSection, TextRun};
+use crate::svg_converter;
 use crate::unified_document::UnifiedDocument;
 use docx_rs::{
     AlignmentType, Docx, Paragraph, Pic, Run, RunFonts, Style, StyleType, Table, TableCell,
@@ -244,14 +246,32 @@ fn create_run(text_run: &TextRun) -> Run {
 }
 
 /// Create an image paragraph
+///
+/// SVG images are converted to PNG for Word 2016+ compatibility.
 fn create_image_paragraph(
     absolute_path: &std::path::PathBuf,
     _alt_text: &str,
 ) -> Result<Paragraph, ExportError> {
     let bytes = std::fs::read(absolute_path).map_err(ExportError::IoError)?;
+    let format = ImageFormat::from_path(absolute_path);
+
+    // Convert SVG to PNG for DOCX compatibility
+    let final_bytes = if format.needs_png_conversion_for_docx() {
+        match svg_converter::svg_to_png(&bytes, None) {
+            Ok(result) => result.png_bytes,
+            Err(e) => {
+                return Err(ExportError::FormatError(format!(
+                    "Failed to convert SVG to PNG: {}",
+                    e
+                )));
+            }
+        }
+    } else {
+        bytes
+    };
 
     // Get image dimensions
-    let (width_emu, height_emu) = match imagesize::blob_size(&bytes) {
+    let (width_emu, height_emu) = match imagesize::blob_size(&final_bytes) {
         Ok(size) if size.width > 0 && size.height > 0 => {
             // Calculate natural size in inches based on pixel dimensions
             let natural_width_inches = size.width as f64 / DEFAULT_IMAGE_DPI;
@@ -274,7 +294,7 @@ fn create_image_paragraph(
     };
 
     // Create the image
-    let pic = Pic::new(&bytes).size(width_emu, height_emu);
+    let pic = Pic::new(&final_bytes).size(width_emu, height_emu);
 
     // Create centered paragraph with image
     let para = Paragraph::new()
