@@ -4,7 +4,9 @@
 //! using the `docx-rust` crate. It works by loading a template DOCX file and
 //! appending content sections to it.
 
+use crate::source_model::ImageFormat;
 use crate::source_model::{Alignment, ListItem, MarkdownBlock, MarkdownSection, TextRun};
+use crate::svg_converter;
 use crate::unified_document::UnifiedDocument;
 use docx_rust::{
     document::{
@@ -77,6 +79,8 @@ fn collect_images(sections: &[MarkdownSection]) -> HashMap<PathBuf, ImageData> {
 }
 
 /// Try to load an image from a block, returning None if it's not an image or can't be loaded
+///
+/// SVG images are converted to PNG for Word 2016+ compatibility.
 fn try_load_image(
     block: &MarkdownBlock,
     existing: &HashMap<PathBuf, ImageData>,
@@ -97,15 +101,33 @@ fn try_load_image(
     }
 
     let bytes = std::fs::read(absolute_path).ok()?;
+    let format = ImageFormat::from_path(absolute_path);
 
-    let extension = absolute_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png");
+    // Convert SVG to PNG for DOCX compatibility
+    let (final_bytes, extension): (Vec<u8>, &str) = if format.needs_png_conversion_for_docx() {
+        match svg_converter::svg_to_png(&bytes, None) {
+            Ok(result) => (result.png_bytes, "png"),
+            Err(e) => {
+                log::warn!(
+                    "Failed to convert SVG to PNG for {}: {}. Image will be skipped.",
+                    absolute_path.display(),
+                    e
+                );
+                return None;
+            }
+        }
+    } else {
+        let ext = absolute_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png");
+        (bytes, ext)
+    };
+
     let media_path = format!("media/image{}.{}", image_counter, extension);
     let rel_id = format!("rId{}", rel_id_counter);
 
-    let (width_px, height_px) = imagesize::blob_size(&bytes)
+    let (width_px, height_px) = imagesize::blob_size(&final_bytes)
         .map(|size| (Some(size.width), Some(size.height)))
         .unwrap_or_else(|e| {
             log::warn!(
@@ -119,7 +141,7 @@ fn try_load_image(
     Some((
         absolute_path.clone(),
         ImageData {
-            bytes,
+            bytes: final_bytes,
             media_path,
             rel_id,
             width_px,

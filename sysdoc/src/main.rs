@@ -42,6 +42,9 @@ mod html_exporter;
 // PDF exporter (Typst-based)
 mod typst_exporter;
 
+// SVG to PNG conversion for DOCX compatibility
+mod svg_converter;
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Commands, DocxEngine, OutputFormat};

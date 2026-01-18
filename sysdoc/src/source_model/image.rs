@@ -81,4 +81,22 @@ impl ImageFormat {
             _ => ImageFormat::Other,
         }
     }
+
+    /// Check if this format should be converted to PNG for DOCX export
+    ///
+    /// SVG and DrawIO SVG files need conversion because Word 2016+ has
+    /// limited SVG 2.0 support.
+    pub fn needs_png_conversion_for_docx(&self) -> bool {
+        matches!(self, ImageFormat::Svg | ImageFormat::DrawIoSvg)
+    }
+
+    /// Get MIME type for this format
+    pub fn mime_type(&self) -> &'static str {
+        match self {
+            ImageFormat::Png => "image/png",
+            ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::Svg | ImageFormat::DrawIoSvg => "image/svg+xml",
+            ImageFormat::Other => "application/octet-stream",
+        }
+    }
 }
