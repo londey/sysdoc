@@ -28,17 +28,27 @@ pub struct TemplateConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FileTemplate {
-    /// Simple file with just content
-    Simple {
-        /// File content
+    /// Markdown file with heading, guidance, AND additional content body
+    /// This variant MUST come first as it's the most specific (has all three fields)
+    MarkdownWithContent {
+        /// Section heading (for markdown files)
+        heading: String,
+        /// Guidance text to be placed in HTML comment
+        guidance: String,
+        /// Additional content to appear after the heading
         content: String,
     },
-    /// Markdown file with heading and guidance
+    /// Markdown file with heading and guidance only
     Markdown {
         /// Section heading (for markdown files)
         heading: String,
         /// Guidance text to be placed in HTML comment
         guidance: String,
+    },
+    /// Simple file with just content (for non-markdown files like .toml, .gitignore)
+    Simple {
+        /// File content
+        content: String,
     },
 }
 
@@ -70,7 +80,18 @@ impl TemplateConfig {
     /// * `None` - No file template found for the given path
     pub fn generate_file_content(&self, file_path: &str) -> Option<String> {
         self.files.get(file_path).map(|template| match template {
-            FileTemplate::Simple { content } => content.clone(),
+            FileTemplate::MarkdownWithContent {
+                heading,
+                guidance,
+                content,
+            } => {
+                let guidance_comment = if !guidance.is_empty() {
+                    format!("<!-- GUIDANCE:\n{}\n-->\n\n", guidance)
+                } else {
+                    String::new()
+                };
+                format!("{}# {}\n{}", guidance_comment, heading, content)
+            }
             FileTemplate::Markdown { heading, guidance } => {
                 let guidance_comment = if !guidance.is_empty() {
                     format!("<!-- GUIDANCE:\n{}\n-->\n\n", guidance)
@@ -79,6 +100,7 @@ impl TemplateConfig {
                 };
                 format!("{}# {}\n\n", guidance_comment, heading)
             }
+            FileTemplate::Simple { content } => content.clone(),
         })
     }
 }
@@ -186,5 +208,88 @@ software to which this document applies.
         assert!(content.contains("<!-- GUIDANCE:"));
         assert!(content.contains("This is guidance text."));
         assert!(content.contains("# Test Heading"));
+    }
+
+    #[test]
+    fn test_markdown_with_content_parsing() {
+        let toml_content = r#"
+name = "test-template"
+document_type = "TEST"
+template_spec = "TEST-SPEC"
+
+[files."src/traceability.md"]
+heading = "Requirements Traceability"
+guidance = "This section shall contain traceability information."
+content = """
+
+## Forward Traceability
+
+Table content here.
+
+## Reverse Traceability
+
+More table content.
+"""
+"#;
+
+        let config: TemplateConfig = toml::from_str(toml_content).unwrap();
+        let content = config.generate_file_content("src/traceability.md").unwrap();
+
+        // Verify guidance is in HTML comment
+        assert!(content.contains("<!-- GUIDANCE:"));
+        assert!(content.contains("This section shall contain traceability information."));
+
+        // Verify heading is present as H1
+        assert!(content.contains("# Requirements Traceability"));
+
+        // Verify content follows the heading
+        assert!(content.contains("## Forward Traceability"));
+        assert!(content.contains("## Reverse Traceability"));
+    }
+
+    #[test]
+    fn test_variant_discrimination() {
+        let toml_content = r#"
+name = "test-template"
+document_type = "TEST"
+template_spec = "TEST-SPEC"
+
+# Simple variant - only content
+[files."config.toml"]
+content = "key = value"
+
+# Markdown variant - heading + guidance, no content
+[files."section.md"]
+heading = "Section Title"
+guidance = "Some guidance text"
+
+# MarkdownWithContent variant - all three fields
+[files."full.md"]
+heading = "Full Section"
+guidance = "Full guidance"
+content = """
+
+Additional body content here.
+"""
+"#;
+
+        let config: TemplateConfig = toml::from_str(toml_content).unwrap();
+
+        // Simple variant - just returns content
+        let simple = config.generate_file_content("config.toml").unwrap();
+        assert_eq!(simple, "key = value");
+
+        // Markdown variant - heading + guidance, no extra content
+        let markdown = config.generate_file_content("section.md").unwrap();
+        assert!(markdown.contains("# Section Title"));
+        assert!(markdown.contains("GUIDANCE:"));
+        assert!(markdown.contains("Some guidance text"));
+        assert!(!markdown.contains("Additional body"));
+
+        // MarkdownWithContent variant - all three combined
+        let full = config.generate_file_content("full.md").unwrap();
+        assert!(full.contains("# Full Section"));
+        assert!(full.contains("Full guidance"));
+        assert!(full.contains("Additional body content"));
     }
 }

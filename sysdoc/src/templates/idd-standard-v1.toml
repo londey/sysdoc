@@ -289,20 +289,13 @@ all section_id and traced_ids defined throughout this document.
 """
 content = """
 
-The tables below are automatically generated from the sysdoc metadata blocks
-defined in the interface design sections of this document.
-
 ## Interface Design to Requirements
-
-<!-- The table below is auto-generated showing each interface and the requirements it addresses -->
 
 ```toml {sysdoc}
 generate_section_id_to_traced_ids_table = ["Interface", "Requirement"]
 ```
 
 ## Requirements to Interface Design
-
-<!-- The table below is auto-generated showing each requirement and the interfaces that implement it -->
 
 ```toml {sysdoc}
 generate_traced_ids_to_section_ids_table = ["Requirement", "Interfaces"]
