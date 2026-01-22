@@ -294,21 +294,18 @@ The sysdoc metadata block below will automatically generate traceability tables 
 all section_id and traced_ids defined throughout this document.
 """
 content = """
-```toml {sysdoc}
-generate_section_id_to_traced_ids_table = ["Software Requirement", "System Requirement"]
-generate_traced_ids_to_section_ids_table = ["System Requirement", "Software Requirements"]
-```
-
-The tables below are automatically generated from the sysdoc metadata blocks
-defined in the requirements sections of this document.
 
 ## Software Requirements to System Requirements
 
-<!-- The table below is auto-generated showing each SRS requirement and the system requirements it traces to -->
+```toml {sysdoc}
+generate_section_id_to_traced_ids_table = ["Software Requirement", "System Requirement"]
+```
 
 ## System Requirements to Software Requirements
 
-<!-- The table below is auto-generated showing each system requirement and the SRS requirements that address it -->
+```toml {sysdoc}
+generate_traced_ids_to_section_ids_table = ["System Requirement", "Software Requirements"]
+```
 """
 
 # 6. Notes

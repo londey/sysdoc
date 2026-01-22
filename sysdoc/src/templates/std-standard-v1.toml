@@ -415,20 +415,13 @@ all section_id and traced_ids defined throughout this document.
 """
 content = """
 
-The tables below are automatically generated from the sysdoc metadata blocks
-defined in the test case sections of this document.
-
 ## Test Cases to Requirements
-
-<!-- The table below is auto-generated showing each STD test case and the requirements it traces to -->
 
 ```toml {sysdoc}
 generate_section_id_to_traced_ids_table = ["Test Case", "Software Requirement"]
 ```
 
 ## Requirements to Test Cases
-
-<!-- The table below is auto-generated showing each requirement and the STD test cases that address it -->
 
 ```toml {sysdoc}
 generate_traced_ids_to_section_ids_table = ["Software Requirement", "Test Cases"]
