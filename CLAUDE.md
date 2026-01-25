@@ -107,4 +107,91 @@ Currently, the project has minimal dependencies. New dependencies should be:
 
 ## Current Status
 
-Early development stage - the project is being scaffolded and initial architecture decisions are being made.
+Preparing for v1.0.0 release on crates.io.
+
+## v1.0.0 Roadmap
+
+### 1. Implement Validation Command
+
+- [ ] Implement `sysdoc validate` with all checks:
+  - Broken image references (--check-images)
+  - Broken CSV references (--check-tables)
+  - Broken internal markdown links (--check-links)
+  - sysdoc.toml configuration validity
+- [ ] Exit with non-zero code when validation fails
+- **Files**: `sysdoc/src/main.rs` (line ~320), possibly new validation module
+
+### 2. Integrate Validation into Build
+
+- [ ] Run validation automatically before building
+- [ ] Fail the build if validation fails
+- **Files**: `sysdoc/src/main.rs`, `sysdoc/src/pipeline.rs`
+
+### 3. Remove Unimplemented --watch Flag
+
+- [ ] Remove `--watch` / `-w` flag from build command
+- [ ] Remove any related code paths
+- **Files**: `sysdoc/src/cli.rs`, `sysdoc/src/main.rs`
+
+### 4. Add Crates.io Metadata
+
+- [ ] Add to `sysdoc/Cargo.toml`:
+  - `description` - Short description of the crate
+  - `repository` - GitHub repository URL
+  - `homepage` - Project homepage (can be same as repository)
+  - `keywords` - Up to 5 keywords for discovery
+  - `categories` - "command-line-utilities", "text-processing"
+- [ ] Update `authors` in workspace `Cargo.toml`
+- **Files**: `Cargo.toml`, `sysdoc/Cargo.toml`
+
+### 5. Add Crates.io Publish Workflow
+
+- [ ] Add `publish` job to GitHub Actions CI
+- [ ] Trigger on version tags (v*)
+- [ ] Use `cargo publish` with CARGO_REGISTRY_TOKEN secret
+- **Files**: `.github/workflows/ci.yml`
+
+### 6. Update README.md
+
+- [ ] Add badges: crates.io version, CI status, license
+- [ ] Fix placeholder GitHub URL (yourusername)
+- [ ] Remove `--watch` flag references
+- [ ] Update output formats section (add HTML, PDF)
+- **Files**: `README.md`
+
+### 7. Update CLAUDE.md
+
+- [ ] Add Architecture section describing three-stage pipeline
+- [ ] Update "Current Status" from early development to v1.0.0
+- [ ] Add this task list
+- **Files**: `CLAUDE.md`
+
+### 8. Bump Version to 1.0.0
+
+- [ ] Update version in workspace `Cargo.toml`
+- [ ] Update version in `sysdoc/Cargo.toml`
+- [ ] Create release tag after all tasks complete
+- **Files**: `Cargo.toml`, `sysdoc/Cargo.toml`
+
+### Implementation Order
+
+1. Validation command (largest task)
+2. Integrate validation into build
+3. Remove --watch flag
+4. Crates.io metadata
+5. README updates
+6. CLAUDE.md updates
+7. CI publish workflow
+8. Version bump and tag
+
+### Verification
+
+After implementation:
+
+1. `cargo test` - all tests pass
+2. `cargo clippy -- -D warnings` - no warnings
+3. `cargo fmt --check` - properly formatted
+4. `cargo deny check` - license compliance
+5. `sysdoc validate examples/minimal-sdd` - validation works
+6. `sysdoc build examples/minimal-sdd -o test.docx` - build runs validation
+7. `cargo publish --dry-run` - ready for crates.io
