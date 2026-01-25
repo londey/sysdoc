@@ -14,7 +14,7 @@ use typst::foundations::{Bytes, Datetime};
 use typst::syntax::{FileId, Source};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::{Library, World};
+use typst::{Library, LibraryExt, World};
 
 // Embedded Liberation Sans fonts (proportional - for body text)
 const FONT_REGULAR: &[u8] = include_bytes!("../../external/fonts/LiberationSans-Regular.ttf");
@@ -281,8 +281,8 @@ fn format_error_location(error: &typst::diag::SourceDiagnostic, world: &SysdocWo
         return id.vpath().as_rootless_path().display().to_string();
     };
 
-    let line = source.byte_to_line(range.start).unwrap_or(0) + 1;
-    let col = source.byte_to_column(range.start).unwrap_or(0) + 1;
+    let line = source.lines().byte_to_line(range.start).unwrap_or(0) + 1;
+    let col = source.lines().byte_to_column(range.start).unwrap_or(0) + 1;
     format!(
         "{}:{}:{}",
         id.vpath().as_rootless_path().display(),

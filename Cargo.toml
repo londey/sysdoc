@@ -10,21 +10,20 @@ authors = ["Your Name <your.email@example.com>"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-clap = { version = "4.5.53", features = ["derive"] }
-pulldown-cmark = "0.13"
-walkdir = "2.5"
-csv = "1.4"
-serde = { version = "1.0.228", features = ["derive"] }
-toml = "0.9.8"
-log = "0.4.29"
-env_logger = "0.11"
-anyhow = "1.0.100"
-thiserror = "2.0.17"
-itertools = "0.14"
-imagesize = "0.13"
-zip = "2.2"
-base64 = "0.22"
-typst = "0.13"
-typst-pdf = "0.13"
-regex = "1.11"
-
+clap = { version = "4.5.53", default-features = false, features = ["derive", "std", "help", "usage", "error-context"] }
+pulldown-cmark = { version = "0.13", default-features = false }
+walkdir = { version = "2.5", default-features = false }
+csv = { version = "1.4", default-features = false }
+serde = { version = "1.0.228", default-features = false, features = ["derive", "std"] }
+toml = { version = "0.9.11", default-features = false, features = ["parse", "display", "serde"] }
+log = { version = "0.4.29", default-features = false }
+env_logger = { version = "0.11", default-features = false }
+anyhow = { version = "1.0.100", default-features = false, features = ["std"] }
+thiserror = { version = "2.0.18", default-features = false }
+itertools = { version = "0.14", default-features = false, features = ["use_std"] }
+imagesize = { version = "0.14.0", default-features = false }
+zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
+base64 = { version = "0.22", default-features = false, features = ["std"] }
+typst = { version = "0.14.2", default-features = false }
+typst-pdf = { version = "0.14.2", default-features = false }
+regex = { version = "1.11", default-features = false, features = ["std", "perf", "unicode-perl"] }
