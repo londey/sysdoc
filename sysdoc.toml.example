@@ -67,6 +67,10 @@ document_template = "sdd-standard-v1"
 # Supported formats: PNG, JPEG, SVG
 # title_page_background = "images/title-background.png"
 
+# Optional heading color for PDF output as a hex color string
+# Default: "#2B579A" (a professional blue)
+# heading_color = "#2B579A"
+
 # Document owner/author information
 # The name is used for dc:creator in DOCX metadata
 [document_owner]
