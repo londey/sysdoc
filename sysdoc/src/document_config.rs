@@ -53,10 +53,19 @@ pub struct DocumentConfig {
     /// Default: "^v[1-9]\\d*\\.\\d+\\.\\d+$" (matches v1.0.0+, excludes v0.x.x)
     #[serde(default = "default_revision_tag_pattern")]
     pub revision_tag_pattern: String,
+
+    /// Optional heading color for PDF output as a hex color string (e.g., "#2B579A")
+    /// Default: "#2B579A" (a professional blue)
+    #[serde(default = "default_heading_color")]
+    pub heading_color: String,
 }
 
 fn default_revision_tag_pattern() -> String {
     r"^v[1-9]\d*\.\d+\.\d+$".to_string()
+}
+
+fn default_heading_color() -> String {
+    "#2B579A".to_string()
 }
 
 /// Person information (owner, approver, etc.)
@@ -164,6 +173,7 @@ mod tests {
             protection_mark: Some("PC-PROTECTED//DESIGN".to_string()),
             title_page_background: None,
             revision_tag_pattern: default_revision_tag_pattern(),
+            heading_color: default_heading_color(),
         };
 
         // Serialize to TOML

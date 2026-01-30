@@ -573,6 +573,7 @@ mod tests {
             protection_mark: None,
             title_page_background: None,
             revision_tag_pattern: r"^v[1-9]\d*\.\d+\.\d+$".to_string(),
+            heading_color: "#2B579A".to_string(),
         }
     }
 

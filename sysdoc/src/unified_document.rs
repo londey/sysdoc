@@ -109,6 +109,8 @@ pub struct DocumentMetadata {
     pub protection_mark: Option<String>,
     /// Optional path to a background image for the title page (used in PDF and HTML outputs)
     pub title_page_background: Option<String>,
+    /// Heading color for PDF output as a hex color string (e.g., "#2B579A")
+    pub heading_color: String,
 }
 
 /// Person information
@@ -246,6 +248,7 @@ mod tests {
             revision_history: Vec::new(),
             protection_mark: None,
             title_page_background: None,
+            heading_color: "#2B579A".to_string(),
         }
     }
 

@@ -392,6 +392,7 @@ pub fn transform(source: SourceModel) -> Result<UnifiedDocument, TransformError>
         revision_history,
         protection_mark: source.config.protection_mark.clone(),
         title_page_background: source.config.title_page_background.clone(),
+        heading_color: source.config.heading_color.clone(),
     };
 
     let mut builder = DocumentBuilder::new(metadata, source.root.clone());

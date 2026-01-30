@@ -422,11 +422,29 @@ fn generate_preamble(doc: &UnifiedDocument) -> String {
   breakable: false,
 )[#set par(leading: 0.5em); #it]
 
-// Keep headings with following content (avoid orphaned headings at page bottom)
-#show heading: it => block(above: 1.4em, below: 0.6em, sticky: true)[#it]
-
 "#,
     );
+
+    // Heading styling: configurable color, increased spacing, H1 underline
+    preamble.push_str(&format!(
+        r##"// Heading color
+#let heading-color = rgb("{}")
+
+// Style headings: colored text, increased spacing above, sticky to avoid orphans
+#show heading: it => {{
+  let spacing-above = if it.level == 1 {{ 2.4em }} else {{ 1.8em }}
+  block(above: spacing-above, below: 0.6em, sticky: true)[
+    #text(fill: heading-color)[#it]
+    #if it.level == 1 {{
+      v(0.3em)
+      line(length: 100%, stroke: 0.5pt + heading-color)
+    }}
+  ]
+}}
+
+"##,
+        doc.metadata.heading_color,
+    ));
 
     preamble
 }
